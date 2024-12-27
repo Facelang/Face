@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"unicode/utf8"
 )
 
 const BOMTag = 0xfeff
@@ -17,10 +16,9 @@ type buffer struct {
 	in             io.Reader // 读取器
 	file           string    // 文件名 / 路径
 	buf            []byte    // 缓存池
-	col, line, off int       // 文件读取指针行列号
+	ch             byte      // 当前字符
 	b, r, e        int       // 读取器游标
-	ch             rune      // 当前字符
-	chw            int       // 当前字符宽度
+	col, line, off int       // 文件读取指针行列号
 	err            error     // 错误信息
 	errFunc        ErrorFunc // 错误处理函数
 }
@@ -115,77 +113,80 @@ func (b *buffer) fillNext() error {
 	return b.fill()
 }
 
-func (b *buffer) read() rune {
-	if b.chw > 0 {
-		return b.ch
-	}
+//func (b *buffer) read() rune {
+//	if b.chw > 0 {
+//		return b.ch
+//	}
+//
+//	//if b.err == nil || b.isFull() {
+//	//	if b.err == io.EOF {
+//	//		return -1
+//	//	}
+//	//	_ = b.fill()
+//	//}
+//
+//	// EOF
+//	if b.r == b.e {
+//		if b.err != io.EOF {
+//			b.error("I/O error: " + b.err.Error())
+//		}
+//		return -1
+//	}
+//
+//	if b.buf[b.r] < utf8.RuneSelf {
+//		b.ch = rune(b.buf[b.r])
+//		b.chw = 1
+//		return b.ch
+//	}
+//
+//	b.ch, b.chw = utf8.DecodeRune(b.buf[b.r:b.e])
+//	if b.ch == utf8.RuneError && b.chw == 1 {
+//		b.error("invalid UTF-8 encoding")
+//		return -1
+//	}
+//
+//	if b.ch == BOMTag {
+//		if b.line > 0 || b.col > 0 {
+//			b.error("invalid BOM in the middle of the file")
+//		}
+//		return -1
+//	}
+//
+//	return b.ch
+//}
 
-	if b.err == nil || b.isFull() {
-		if b.err == io.EOF {
-			return -1
-		}
-		_ = b.fill()
-	}
-
-	// EOF
+func (b *buffer) next() (byte, bool) {
 	if b.r == b.e {
-		if b.err != io.EOF {
-			b.error("I/O error: " + b.err.Error())
-		}
-		return -1
+		b.err = b.fillNext()
 	}
-
-	if b.buf[b.r] < utf8.RuneSelf {
-		b.ch = rune(b.buf[b.r])
-		b.chw = 1
-		return b.ch
-	}
-
-	b.ch, b.chw = utf8.DecodeRune(b.buf[b.r:b.e])
-	if b.ch == utf8.RuneError && b.chw == 1 {
-		b.error("invalid UTF-8 encoding")
-		return -1
-	}
-
-	if b.ch == BOMTag {
-		if b.line > 0 || b.col > 0 {
-			b.error("invalid BOM in the middle of the file")
-		}
-		return -1
-	}
-
-	return b.ch
-}
-
-func (b *buffer) move() {
-	if b.chw == 0 {
-		return
-	}
-	defer func() {
-		b.ch = 0
-		b.chw = 0
-	}()
-
-	b.r += b.chw
-	if b.ch == '\n' {
-		b.line++
-		b.col = 0
+	if b.r == b.e {
+		return 0, true
 	} else {
-		b.col += b.chw
+		b.ch = b.buf[b.r]
+		b.r += 1
+		b.off += 1
 	}
+
+	if b.ch == '\n' {
+		b.col = 0
+		b.line += 1
+	} else {
+		b.col += 1
+	}
+	return b.ch, false
 }
 
-func (b *buffer) next() rune {
-	b.move()
-	return b.read()
-}
+//func (b *buffer) next() rune {
+//	b.move()
+//	return b.read()
+//}
 
-func (b *buffer) isFull() bool {
-	return b.e == b.r || b.buf[b.r] > utf8.RuneSelf && !utf8.FullRune(b.buf)
-}
-func (b *buffer) start()          { b.b = b.r - b.chw }
+//	func (b *buffer) isFull() bool {
+//		return b.e == b.r || b.buf[b.r] > utf8.RuneSelf && !utf8.FullRune(b.buf)
+//	}
+func (b *buffer) start()          { b.b = b.r - 1 }
 func (b *buffer) stop()           { b.b = -1 }
-func (b *buffer) segment() []byte { return b.buf[b.b : b.r-b.chw] }
+func (b *buffer) segment() []byte { return b.buf[b.b : b.r-1] }
 
 //func (b *buffer) offset(s uint) (rune, uint) {
 //	return GetRune(b.buf[s:], b.errorBy)

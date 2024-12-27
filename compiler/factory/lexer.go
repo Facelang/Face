@@ -12,21 +12,18 @@ func (l *lexer) init(file string, src interface{}, errFunc ErrorFunc) {
 	l.buf.init(file, src, errFunc)
 }
 
-func (l *lexer) scan() (token.Token, token.Position, string) {
-	line, col := l.buf.next()
-	for l.buf.ch <= space {
-		l.buf.next()
+func (l *lexer) scan() uint32 {
+	ch, eof := l.buf.next()
+	for ch <= ' ' {
+		if eof {
+			return 0
+		}
+		ch, eof = l.buf.next()
 	}
-	l.stop()
 
-	// token start
-	//s.Line, s.Column = s.pos()
-	//s.blank = s.line > startLine || startCol == colbase
-	s.start()
-	s.file.Line, s.file.Column = line, col
-	switch s.buf.ch {
-	case EOFTag:
-		return token.EOF, s.file, token.EOF.String()
+	line, col := l.buf.line+1, l.buf.col+1
+	l.buf.start()
+	switch ch {
 	case '"':
 		return ReadString(s, s.file)
 	case '`':
