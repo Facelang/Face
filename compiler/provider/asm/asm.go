@@ -1,0 +1,5 @@
+package asm
+
+func Compile() {
+
+}

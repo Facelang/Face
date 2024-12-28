@@ -2,8 +2,6 @@ package factory
 
 import (
 	"strconv"
-	"unicode"
-	"unicode/utf8"
 )
 
 type Token int
@@ -192,32 +190,33 @@ func (tok Token) Precedence() int {
 	return LowestPrec
 }
 
-// Lookup maps an identifier to its keyword token or [IDENT] (if not a keyword).
-func Lookup(ident string) Token {
-	if tok, isKeyword := keywords[ident]; isKeyword {
-		return tok
-	}
-	return IDENT
-}
+//// Lookup maps an identifier to its keyword token or [IDENT] (if not a keyword).
+//func Lookup(ident string) Token {
+//	if tok, isKeyword := keywords[ident]; isKeyword {
+//		return tok
+//	}
+//	return IDENT
+//}
 
 func (tok Token) IsLiteral() bool { return _literal < tok && tok < _literalEnd }
-func (tok Token) IsOperator() bool {
-	return (_operator < tok && tok < _operatorEnd) || tok == TILDE
-}
 
-func IsExported(name string) bool {
-	ch, _ := utf8.DecodeRuneInString(name)
-	return unicode.IsUpper(ch)
-}
-
-func IsIdentifier(name string) bool {
-	if name == "" || IsKeyword(name) {
-		return false
-	}
-	for i, c := range name {
-		if !unicode.IsLetter(c) && c != '_' && (i == 0 || !unicode.IsDigit(c)) {
-			return false
-		}
-	}
-	return true
-}
+//func (tok Token) IsOperator() bool {
+//	return (_operator < tok && tok < _operatorEnd) || tok == TILDE
+//}
+//
+//func IsExported(name string) bool {
+//	ch, _ := utf8.DecodeRuneInString(name)
+//	return unicode.IsUpper(ch)
+//}
+//
+//func IsIdentifier(name string) bool {
+//	if name == "" || IsKeyword(name) {
+//		return false
+//	}
+//	for i, c := range name {
+//		if !unicode.IsLetter(c) && c != '_' && (i == 0 || !unicode.IsDigit(c)) {
+//			return false
+//		}
+//	}
+//	return true
+//}

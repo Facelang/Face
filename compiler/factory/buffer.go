@@ -52,6 +52,7 @@ func (b *buffer) init(file string, src interface{}, errFunc ErrorFunc) {
 		if b.err != nil {
 			panic(b.err)
 		}
+		b.err = b.fill()
 		return
 	}
 
@@ -154,6 +155,16 @@ func (b *buffer) fillNext() error {
 //
 //	return b.ch
 //}
+
+func (b *buffer) look() byte {
+	if b.r+1 >= b.e {
+		b.err = b.fillNext()
+	}
+	if b.r+1 >= b.e {
+		return 0
+	}
+	return b.buf[b.r+1]
+}
 
 func (b *buffer) next() (byte, bool) {
 	if b.r == b.e {
