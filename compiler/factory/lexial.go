@@ -5,129 +5,162 @@ type Lexer interface {
 }
 
 type lexer struct {
-	buf            *buffer // 读取器
-	content        []byte  // 暂存字符
-	col, line, off int     // 文件读取指针行列号
+	buffer            *buffer // 读取器
+	content           string  // 暂存字符
+	col, line, offset int     // 文件读取指针行列号
 }
 
-func (l *lexer) init(file string, src interface{}, errFunc ErrorFunc) {
-	l.buf.init(file, src, errFunc)
+func (l *lexer) init(file string, errFunc ErrorFunc) error {
+	defer func() { l.buffer.read() }()
+	return l.buffer.init(file, errFunc)
 }
 
-func (l *lexer) scan() Token {
-	ch, eof := l.buf.next()
-	for ch <= ' ' { // 空格符号之前的符号全部忽略
-		if eof {
+func (l *lexer) NextToken() Token {
+	l.content = ""
+
+	for l.buffer.ch <= ' ' { // 空格符号之前的符号全部忽略
+		if !l.buffer.read() {
 			return EOF
 		}
-		ch, eof = l.buf.next()
 	}
 
-	l.col = l.buf.col + 1
-	l.line = l.buf.line + 1
-	l.off = l.buf.off + 1
+	l.buffer.start()
 
-	l.buf.start()
+	l.col = l.buffer.col
+	l.line = l.buffer.line
+	l.offset = l.buffer.offset
 
-	if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch == '_' {
-		for ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' ||
-			ch == '_' || ch >= '0' && ch <= '9' {
-			ch, eof = l.buf.next()
+	if isIndentPrefix(l.buffer.ch) {
+		for isIndentContent(l.buffer.ch) {
+			if !l.buffer.read() {
+				break
+			}
 		}
-		l.content = l.buf.segment()
+		l.content = l.buffer.segment()
 		return IDENT
 		// 检查是否为 关键字
-	} else if ch >= '0' && ch <= '9' {
-		for ch >= '0' && ch <= '9' {
-			ch, eof = l.buf.next()
+	} else if isNumeric(l.buffer.ch) {
+		for isNumeric(l.buffer.ch) {
+			if !l.buffer.read() {
+				break
+			}
 		}
-		l.content = l.buf.segment()
+		l.content = l.buffer.segment()
 		return INT
 	} else {
-		// +, -, :, ;, ,, "
-		// ; 分号之后读取换行符
-		switch ch {
+		switch l.buffer.ch {
 		case '+':
+			l.buffer.read()
 			return ADD
 		case '-':
+			l.buffer.read()
 			return SUB
 		case '*':
+			l.buffer.read()
 			return MUL
 		case '/':
-			if l.buf.look() == '/' {
-				for !eof && ch != '\n' {
-					ch, eof = l.buf.next()
+			l.buffer.read()
+			if l.buffer.ch == '/' {
+				l.buffer.read()
+				for l.buffer.ch != '\n' {
+					if !l.buffer.read() {
+						break
+					}
 				}
 				return COMMENT
 			}
 			return QUO
 		case '>':
-			switch l.buf.look() {
+			l.buffer.read()
+			switch l.buffer.ch {
 			case '=':
-				l.buf.next()
+				l.buffer.read()
 				return GEQ
 			case '>':
-				l.buf.next()
+				l.buffer.read()
 				return SHR
 			default:
 				return GTR
 			}
 		case '<':
-			switch l.buf.look() {
+			l.buffer.read()
+			switch l.buffer.ch {
 			case '=':
-				l.buf.next()
+				l.buffer.read()
 				return LEQ
-			case '>':
-				l.buf.next()
+			case '<':
+				l.buffer.read()
 				return SHL
 			default:
 				return LSS
 			}
 		case '=':
-			if l.buf.look() == '=' {
-				l.buf.next()
+			l.buffer.read()
+			if l.buffer.ch == '=' {
+				l.buffer.read()
 				return EQL
 			}
 			return ASSIGN
 		case '!':
-			if l.buf.look() == '=' {
-				l.buf.next()
+			l.buffer.read()
+			if l.buffer.ch == '=' {
+				l.buffer.read()
 				return NEQ
 			}
 			return ILLEGAL
 		case ';':
+			l.buffer.read()
 			return SEMICOLON
 		case ',':
+			l.buffer.read()
 			return COMMA
 		case '"': // 查找字符串，到 " 结束
-			ch, eof = l.buf.next()
-			for !eof && ch != '"' {
-				if ch == '\\' {
-					l.buf.next()
+			next := l.buffer.read()
+			for !next || l.buffer.ch != '"' {
+				if l.buffer.ch == '\\' {
+					l.buffer.read()
 				}
-				ch, eof = l.buf.next()
+				next = l.buffer.read()
 			}
-			l.content = l.buf.segment()
+			l.buffer.read()
+			l.content = l.buffer.segment()
 			return STRING
 		case '\'': // 读一个字符
-			ch, eof = l.buf.next()
-			if l.buf.look() == '\'' {
-				ch, eof = l.buf.next()
-				l.content = []byte("")
-				l.content = append(l.content, ch)
-				return CHAR
+			l.buffer.read()
+			if l.buffer.ch == '\\' {
+				l.buffer.read()
 			}
+			l.content = string(l.buffer.ch)
+			l.buffer.read()
 			return ILLEGAL
 		case '(':
+			l.buffer.read()
 			return LPAREN
 		case ')':
+			l.buffer.read()
 			return RPAREN
 		case '{':
+			l.buffer.read()
 			return LBRACE
 		case '}':
+			l.buffer.read()
 			return RBRACE
 		default:
+			l.buffer.read()
 			return ILLEGAL
 		}
 	}
+}
+
+func isIndentContent(ch byte) bool {
+	return ch >= 'a' && ch <= 'z' || ch >= 'A' &&
+		ch <= 'Z' || ch == '_' || ch >= '0' && ch <= '9'
+}
+
+func isIndentPrefix(ch byte) bool {
+	return ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch == '_'
+}
+
+func isNumeric(ch byte) bool {
+	return ch >= '0' && ch <= '9'
 }

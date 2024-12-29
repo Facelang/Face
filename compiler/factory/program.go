@@ -3,9 +3,13 @@ package factory
 func Program(file string) {
 	p := parser{
 		lex: &lexer{
-			buf: &buffer{},
+			buffer: &buffer{},
 		},
+		table: &ProgTable{},
 	}
-	p.init(file)
+	err := p.init(file)
+	if err != nil {
+		panic(err)
+	}
 	p.parse()
 }

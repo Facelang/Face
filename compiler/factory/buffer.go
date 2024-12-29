@@ -1,7 +1,6 @@
 package factory
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -13,33 +12,27 @@ const BufferSize = 4 << 10    // 4K: minimum buffer size
 const BufferSizeMax = 4 << 24 // 64M: maximum buffer size
 
 type buffer struct {
-	in             io.Reader // 读取器
-	file           string    // 文件名 / 路径
-	buf            []byte    // 缓存池
-	ch             byte      // 当前字符
-	b, r, e        int       // 读取器游标
-	col, line, off int       // 文件读取指针行列号
-	err            error     // 错误信息
-	errFunc        ErrorFunc // 错误处理函数
+	buf               []byte    // 缓存池
+	ch                byte      // 缓存字符
+	file              string    // 文件名 / 路径
+	reader            io.Reader // 读取器
+	b, r, e           int       // 读取器游标
+	col, line, offset int       // 文件读取指针行列号
+	err               error     // 错误信息
+	errFunc           ErrorFunc // 错误处理函数
 }
 
 func (b *buffer) error(msg string) {
-	b.errFunc(b.file, b.line+1, b.col+1, b.off+1, msg)
+	b.errFunc(b.file, b.line+1, b.col+1, b.offset+1, msg)
 }
 
 func (b *buffer) errorf(format string, args ...interface{}) {
 	b.error(fmt.Sprintf(format, args...))
 }
 
-func (b *buffer) init(file string, src interface{}, errFunc ErrorFunc) {
-	b.in = nil
-	b.file = file
-	b.col = 0
-	b.line = 0
-	b.off = 0
-	b.b = 0
-	b.r = 0
-	b.e = 0
+func (b *buffer) init(file string, errFunc ErrorFunc) error {
+	b.b, b.r, b.e = 0, 0, 0
+	b.col, b.line, b.offset = 0, 0, 0
 	b.err = io.EOF
 	b.errFunc = errFunc
 
@@ -47,34 +40,44 @@ func (b *buffer) init(file string, src interface{}, errFunc ErrorFunc) {
 		b.buf = make([]byte, BufferSize)
 	}
 
-	if src != nil {
-		b.in, b.err = os.Open(file)
-		if b.err != nil {
-			panic(b.err)
-		}
-		b.err = b.fill()
-		return
+	reader, err := os.Open(file)
+	if err != nil {
+		return err
 	}
+	b.reader = reader
+	b.file = file
+	b.err = b.fill()
+	return nil
 
-	switch s := src.(type) {
-	case string:
-		b.buf = []byte(s)
-	case []byte:
-		b.buf = s
-	case *bytes.Buffer:
-		b.buf = s.Bytes()
-	case io.Reader:
-		b.in = s
-		b.err = b.fill()
-	}
+	//switch s := src.(type) {
+	//case string:
+	//	b.buf = []byte(s)
+	//case []byte:
+	//	b.buf = s
+	//case *bytes.Buffer:
+	//	b.buf = s.Bytes()
+	//case io.Reader:
+	//	b.in = s
+	//	b.err = b.fill()
+	//default:
+	//	b.err = fmt.Errorf("Unsupported type: %T", src)
+	//}
+	//return b.err
 }
 
 func (b *buffer) fill() error {
-	n, err := b.in.Read(b.buf[b.e:len(b.buf)])
+	n, err := b.reader.Read(b.buf[b.e:len(b.buf)])
 	if n > 0 {
 		b.e += n
 	}
+	if err != nil {
+		return err
+	}
 
+	n, err = b.reader.Read(b.buf[b.e:len(b.buf)])
+	if n > 0 {
+		b.e += n
+	}
 	return err
 }
 
@@ -90,9 +93,9 @@ func (b *buffer) fillNext() error {
 	}
 
 	content := b.buf[i:b.e]
+	size := b.e - i
 
-	if len(b.buf) < BufferSizeMax {
-		size := b.e - i
+	if size > 0 && len(b.buf) < BufferSizeMax {
 		if size<<1 >= BufferSizeMax {
 			b.buf = make([]byte, BufferSizeMax)
 		} else {
@@ -100,12 +103,11 @@ func (b *buffer) fillNext() error {
 		}
 	}
 
-	if i > 0 {
+	if i > 0 && size > 0 {
 		copy(b.buf, content)
+		b.r -= i
+		b.e -= i
 	}
-
-	b.r -= i
-	b.e -= i
 
 	if b.e >= len(b.buf) {
 		return overflow(b)
@@ -156,35 +158,29 @@ func (b *buffer) fillNext() error {
 //	return b.ch
 //}
 
-func (b *buffer) look() byte {
-	if b.r+1 >= b.e {
+// 返回值是否为 eof
+func (b *buffer) read() bool {
+	if b.r == b.e {
 		b.err = b.fillNext()
 	}
-	if b.r+1 >= b.e {
-		return 0
-	}
-	return b.buf[b.r+1]
-}
 
-func (b *buffer) next() (byte, bool) {
 	if b.r == b.e {
-		b.err = b.fillNext()
-	}
-	if b.r == b.e {
-		return 0, true
+		b.ch = 0
+		return false
 	} else {
 		b.ch = b.buf[b.r]
 		b.r += 1
-		b.off += 1
-	}
+		b.offset += 1
 
-	if b.ch == '\n' {
-		b.col = 0
-		b.line += 1
-	} else {
-		b.col += 1
+		if b.ch == '\n' {
+			b.col = 0
+			b.line += 1
+		} else {
+			b.col += 1
+		}
+
+		return true
 	}
-	return b.ch, false
 }
 
 //func (b *buffer) next() rune {
@@ -197,7 +193,7 @@ func (b *buffer) next() (byte, bool) {
 //	}
 func (b *buffer) start()          { b.b = b.r - 1 }
 func (b *buffer) stop()           { b.b = -1 }
-func (b *buffer) segment() []byte { return b.buf[b.b : b.r-1] }
+func (b *buffer) segment() string { return string(b.buf[b.b : b.r-1]) }
 
 //func (b *buffer) offset(s uint) (rune, uint) {
 //	return GetRune(b.buf[s:], b.errorBy)
