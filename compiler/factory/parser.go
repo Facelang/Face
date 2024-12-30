@@ -92,7 +92,7 @@ func (p *parser) kind() string {
 }
 
 // dectail -> semicon|<varlist>semicon|lparen<para>rparen<block>
-func (p *parser) dectail(kind, name string) string {
+func (p *parser) dectail(kind, name string) {
 	switch token := p.lex.NextToken(); token {
 	case SEMICOLON:
 		v := VarRecord{
@@ -104,13 +104,12 @@ func (p *parser) dectail(kind, name string) string {
 		}
 		p.table.addVar(&v)
 	case LPAREN:
-		fn := FuncRecord{
+		fn := FnRecord{
 			kind: kind,
 			name: name,
 		}
-		para()
-		//match(rpren);
-		funtail(dec_type, dec_name)
+		p.para(&fn)
+		p.funtail(&fn)
 	default:
 		v := VarRecord{
 			kind: kind,
@@ -120,50 +119,162 @@ func (p *parser) dectail(kind, name string) string {
 			v.strValId = -2
 		}
 		p.table.addVar(&v)
-		varlist(dec_type) //可能是^,会向下取符号，不需要重复取
+		p.varlist(token, &v) //可能是^,会向下取符号，不需要重复取
 	}
 }
 
-// funtail	-> <block>|semicon
-func (p *parser) funtail(kind, name string) {
+// funtail	-> <block>|semicon TODO
+// 到这里已经有参数了 void fn()...
+//
+//	如果是分号，说明是函数定义
+//	如果是大括号，说明函数有实现
+//	其他情况
+func (p *parser) funtail(fn *FnRecord) {
 	level := 0 // 复合语句的层次
 	token := p.lex.NextToken()
 	if token == SEMICOLON {
-		p.table.addFn()
+		p.table.addFn(fn)
 		return
-	} else if token == LBRACE {
-		tfun.defined=1;//标记函数定义属性
-		table.addfun();
+	} else if token == LBRACE { // 函数定义
+		fn.defined = 1 // 标记函数定义属性
+		p.table.addFn(fn)
+		// 解析代码块
+		//wait=1;
+		p.block(0, &level,0,0);
+		//level=0;//恢复
+		//tfun.poplocalvars(-1);//清除参数
+		//genFuntail();
+		return
+	} else if token == IDENT {
+		//||token==rsv_if||
+		//token==rsv_while||token==rsv_return||
+		//token==rsv_break||token==rsv_continue ||
+		//token==rsv_in||token==rsv_out||token==rbrac
+		// 这里目前不清楚
+		//BACK
+		//block(0,level,0,0);
+		//level=0;//恢复
+		//return ;
+
+		//else if token==rsv_void||token==rsv_int||token==rsv_char||token==rsv_string
+		//synterror(semiconlost,-1);
+		//BACK
+		//return ;
+
+		//else
+		//synterror(semiconwrong,0);
+		//return ;
+
 	}
-else if(token==lbrac)//函数定义
+}
+
+// <para>		->	<type>ident<paralist>|^
+// 解析参数
+func (p *parser) para(fn *FnRecord) {
+	token := p.lex.NextToken()
+	if token == RPAREN {
+		return
+	}
+
+	kind := p.kind()
+	token = p.lex.NextToken()
+	if token != IDENT {
+		panic("类型不正确！")
+	}
+	name := p.lex.content
+	if p.table.exist(name) {
+		panic("参数名称重复！")
+	}
+	v := VarRecord{
+		kind: kind,
+		name: name,
+	}
+	fn.addArg(&v)
+	p.table.addVar(&v)
+	p.paralist(fn)
+}
+
+// <paralist> -> comma<type>ident<paralist>|^
+func (p *parser) paralist(fn *FnRecord) {
+	token := p.lex.NextToken()
+	if token == COMMA {
+		kind := p.kind()
+		token = p.lex.NextToken()
+		if token != IDENT {
+			panic("类型不正确！")
+		}
+		name := p.lex.content
+		if p.table.exist(name) {
+			panic("参数名称重复！")
+		}
+		v := VarRecord{
+			kind: kind,
+			name: name,
+		}
+		fn.addArg(&v)
+		p.table.addVar(&v)
+		p.paralist(fn)
+	} else if token == RPAREN { // ) 结束， 正常关闭
+		return
+	} else {
+		// { ;
+		// 定义或者声明时候缺少)
+		panic("语法不正确！")
+	}
+
+}
+
+// <varlist>	->	comma ident<varlist>|^
+func (p *parser) varlist(token Token, v *VarRecord) {
+	switch token {
+	case COMMA:
+		token = p.lex.NextToken()
+		if token != IDENT {
+			panic("类型不正确！")
+		}
+		name := p.lex.content
+		nv := &VarRecord{
+			kind: v.kind,
+			name: name,
+		}
+		if v.kind == "string" {
+			nv.strValId = -2
+		}
+		p.table.addVar(nv)
+		token = p.lex.NextToken()
+		p.varlist(token, v)
+		return
+	case SEMICOLON:
+		return
+	default:
+		panic("语法不正确")
+	}
+
+}
+
+
+
+//<block>		->	lbrac<childprogram>rbrac
+func (p *parser) block(initvar_num int,level *int,lopId int, blockAddr int) {
+	token := p.lex.NextToken() //
+
+
+}
+void block(int initvar_num,int& level,int lopId,int blockAddr)
 {
-p("函数定义",2);
-tfun.defined=1;//标记函数定义属性
-table.addfun();
+nextToken();
+if(!match(lbrac))//丢失{
+{
+synterror(lbraclost,-1);
 BACK
-block(0,level,0,0);
-level=0;//恢复
-tfun.poplocalvars(-1);//清除参数
-genFuntail();
-return;
 }
-else if(token==ident||token==rsv_if||token==rsv_while||token==rsv_return||token==rsv_break||token==rsv_continue
-||token==rsv_in||token==rsv_out||token==rbrac)//必然是函数定义
-{
-BACK
-block(0,level,0,0);
-level=0;//恢复
-return ;
-}
-else if(token==rsv_void||token==rsv_int||token==rsv_char||token==rsv_string)//其他的作为声明处理
-{
-synterror(semiconlost,-1);
-BACK
-return ;
-}
-else
-{
-synterror(semiconwrong,0);
-return ;
-}
+int var_num=initvar_num;//复合语句里变量的个数,一般是0，但是在if和while语句就不一定了
+level++;//每次进入时加1
+
+childprogram(var_num,level,lopId,blockAddr);
+
+level--;
+//match(rbrac);
+//要清除局部变量名字表
+tfun.poplocalvars(var_num);
 }

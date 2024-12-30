@@ -1,6 +1,8 @@
 package factory
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type ProgTable struct {
 	fnRecList  map[string]*FnRecord
@@ -23,6 +25,13 @@ func (t *ProgTable) addVar(v *VarRecord) {
 	fmt.Printf("\t\t\t全局变量 <%s>(%s)\n", v.kind, v.name)
 }
 
+// 测试局部变量，参数的名字是否重复，主要应对变量的重复定义，全局变量和函数不需要调用他
+func (t *ProgTable) exist(name string) bool {
+	_, ok1 := t.fnRecList[name]
+	_, ok2 := t.varRecList[name]
+	return ok1 || ok2
+}
+
 type FnRecord struct {
 	kind      string       // 类型
 	name      string       // 名称
@@ -31,6 +40,35 @@ type FnRecord struct {
 	defined   int          // 函数是否给出定义
 	flushed   int          // 函数参数是否已经缓冲写入，标记是否再清楚的时候清除缓冲区
 	hadret    int          // 记录是否含有返回语句
+}
+
+func (fn *FnRecord) addArg(v *VarRecord) {
+	fn.args = append(fn.args, v.kind)
+	fn.addLocalVar(v)
+}
+
+func (fn *FnRecord) addLocalVar(v *VarRecord) {
+	//局部变量定义的缓冲机制，defined==1之前，是不写入符号表的，因为此时还不能确定是不是函数定义
+
+	if fn.defined == 0 { //还是参数声明
+		fn.localVars = append(fn.localVars, v)
+	} else {
+		fn.localVars = append(fn.localVars, v)
+		// 局部变量的地址按照ebp-4*count的方式变化,修改
+		v.localAddr = -4 * (len(fn.localVars) - len(fn.args))
+		//代码中为局部变量开辟临时空间
+		//genLocvar(0);
+	}
+}
+
+// 防止参数的名字在写入之前重复
+func (fn *FnRecord) exist(name string) bool {
+	for _, v := range fn.localVars {
+		if v.name == name {
+			return true
+		}
+	}
+	return false
 }
 
 //struct fun_record { //函数声明记录
