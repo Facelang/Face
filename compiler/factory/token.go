@@ -13,11 +13,11 @@ const (
 
 	_literal    // 字面量开始标记
 	IDENT       // main
-	INT         // 12345
-	FLOAT       // 123.45
-	IMAG        // 123.45i
-	CHAR        // 'a'
-	STRING      // "abc"
+	V_INT       // 12345
+	V_FLOAT     // 123.45
+	V_IMAG      // 123.45i
+	V_CHAR      // 'a'
+	V_STRING    // "abc"
 	_literalEnd // 字面量结束标记
 
 	_operator // 运算符
@@ -72,6 +72,24 @@ const (
 	COLON        // :
 	_operatorEnd // 操作符结束
 
+	_keywords
+	BREAK    // 1
+	CHAR     // 2
+	CONTINUE // 3
+
+	ELSE   // 4
+	EXTERN // 5
+
+	IF     // 5
+	IN     // 6
+	INT    // 7
+	OUT    // 8
+	RETURN // 9
+	STRING // 10
+	VOID   // 11
+	WHILE  // 12
+	_keywordsEnd
+
 	additional_beg
 	NEWLINE   // \n
 	POUND     // #
@@ -89,12 +107,12 @@ var tokens = [...]string{
 	EOF:     "EOF",
 	COMMENT: "COMMENT",
 
-	IDENT:  "IDENT",
-	INT:    "INT",
-	FLOAT:  "FLOAT",
-	IMAG:   "IMAG",
-	CHAR:   "CHAR",
-	STRING: "STRING",
+	IDENT:    "IDENT",
+	V_INT:    "V_INT",
+	V_FLOAT:  "V_FLOAT",
+	V_IMAG:   "V_IMAG",
+	V_CHAR:   "V_CHAR",
+	V_STRING: "V_STRING",
 
 	ADD: "+",
 	SUB: "-",
@@ -151,6 +169,22 @@ var tokens = [...]string{
 	RBRACE:    "}",
 	SEMICOLON: ";",
 	COLON:     ":",
+
+	BREAK:    "break",
+	CHAR:     "char",
+	CONTINUE: "continue",
+
+	ELSE:   "else",
+	EXTERN: "extern",
+	IF:     "if",
+	IN:     "in",
+	INT:    "int",
+	OUT:    "out",
+	RETURN: "return",
+	STRING: "string",
+	VOID:   "void",
+	WHILE:  "while",
+
 	//TILDE:     "~",
 }
 
@@ -190,13 +224,17 @@ func (tok Token) Precedence() int {
 	return LowestPrec
 }
 
-//// Lookup maps an identifier to its keyword token or [IDENT] (if not a keyword).
-//func Lookup(ident string) Token {
-//	if tok, isKeyword := keywords[ident]; isKeyword {
-//		return tok
-//	}
-//	return IDENT
-//}
+var keywordsList = []string{"break", "char", "continue", "else", "extern", "if", "in", "int", "out", "return", "string", "void", "while"}
+var keywordsTable = []Token{BREAK, CHAR, CONTINUE, ELSE, EXTERN, IF, IN, INT, OUT, RETURN, STRING, VOID, WHILE}
+
+func Keywords(ident string) (Token, bool) {
+	for i, k := range keywordsList {
+		if k == ident {
+			return keywordsTable[i], true
+		}
+	}
+	return ILLEGAL, false
+}
 
 func (tok Token) IsLiteral() bool { return _literal < tok && tok < _literalEnd }
 

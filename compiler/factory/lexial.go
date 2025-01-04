@@ -8,6 +8,8 @@ type lexer struct {
 	buffer            *buffer // 读取器
 	content           string  // 暂存字符
 	col, line, offset int     // 文件读取指针行列号
+	back              bool    // 回退标识
+	backToken         Token   // 回退Token
 }
 
 func (l *lexer) init(file string, errFunc ErrorFunc) error {
@@ -15,7 +17,21 @@ func (l *lexer) init(file string, errFunc ErrorFunc) error {
 	return l.buffer.init(file, errFunc)
 }
 
+func (l *lexer) Back(token Token) {
+	l.back = true
+	l.backToken = token
+}
+
 func (l *lexer) NextToken() Token {
+	defer func() {
+		l.back = false
+	}()
+
+	// 如果有回退，先获取回退
+	if l.back {
+		return l.backToken
+	}
+
 	l.content = ""
 
 	for l.buffer.ch <= ' ' { // 空格符号之前的符号全部忽略
@@ -37,6 +53,10 @@ func (l *lexer) NextToken() Token {
 			}
 		}
 		l.content = l.buffer.segment()
+		key, ok := Keywords(l.content)
+		if ok {
+			return key
+		}
 		return IDENT
 		// 检查是否为 关键字
 	} else if isNumeric(l.buffer.ch) {
