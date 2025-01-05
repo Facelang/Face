@@ -2,6 +2,7 @@ package factory
 
 import (
 	"fmt"
+	"os"
 )
 
 // ProgDec 变量声明记录
@@ -88,6 +89,19 @@ func (fn *ProgFunc) createTempVar(kind string, hasVal bool, vn *int) *ProgDec {
 	return temp
 }
 
+// 将参数写到符号表
+func (fn *ProgFunc) flushargs(table *ProgTable) {
+	for i := len(fn.args) - 1; i >= 0; i-- {
+		v := fn.localVars[i]
+		v.localAddr = 4 * (i + 2) // 修改参数地址，参数的地址按照ebp+4*count+4的方式变化
+		if v.kind == "string" {
+			v.strValId = -1 // 参数的类型统一为动态string
+		}
+		table.addVar(v)
+	}
+	fn.flushed = 1
+}
+
 type ProgTable struct {
 	fnRecList   map[string]*ProgFunc // 变量声明列表
 	varRecList  map[string]*ProgDec  // 函数声明列表
@@ -95,12 +109,18 @@ type ProgTable struct {
 	realArgList []*ProgDec           // 函数调用的实参列表，用于检查参数调用匹配和实参代码生成
 }
 
-func (t *ProgTable) addFn(f *ProgFunc) {
+func (t *ProgTable) addFn(gen *codegen, f *ProgFunc) {
 	if _, ok := t.fnRecList[f.name]; ok {
-		// 记录异常
+		// TODO 判断已定义函数，和新的函数是否一直（参数数量，类型）
+		// 为了简化语法，这里不允许重复定义
+		_ = fmt.Errorf("(Func)重复定义【%s】\n", f.name)
+		os.Exit(1)
 	}
 	t.fnRecList[f.name] = f
-	fmt.Printf("\t\t\t全局变量 <%s>(%s)\n", f.kind, f.name)
+	if f.defined == 1 {
+		f.flushargs(t)
+		gen.funhead(f)
+	}
 }
 
 func (t *ProgTable) addVar(v *ProgDec) {

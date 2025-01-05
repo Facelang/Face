@@ -1,6 +1,9 @@
 package factory
 
-import "io"
+import (
+	"fmt"
+	"io"
+)
 
 type codegen struct {
 	out io.Writer
@@ -8,6 +11,33 @@ type codegen struct {
 
 func genAss(dst, src *ProgDec, vn *int) *ProgDec {
 
+}
+
+// 产生函数头的代码，因为是在函数解析的过程中进行代码生成，所有默认是用的是tfun的信息opp!=addi
+func (g *codegen) funhead(f *ProgFunc) {
+	_, _ = fmt.Fprintf(g.out, "%s:\n", f.name)                                           //函数头
+	_, _ = fmt.Fprintf(g.out, "\tpush ebp\n\tmov ebp,esp\n")                             //enter
+	_, _ = fmt.Fprintf(g.out, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
+	_, _ = fmt.Fprintf(g.out, "\tmov ebx,[@s_ebp]\n\tpush ebx\n\tmov [@s_ebp],esp\n")    //s_enter
+	_, _ = fmt.Fprintf(g.out, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
+	_, _ = fmt.Fprintf(g.out, "\t;函数头\n")
+}
+
+func (g *codegen) funtail(f *ProgFunc) {
+	if f.hadret != 0 { // todo 不知道含义
+		return
+	}
+	_, _ = fmt.Fprintf(g.out, "\t;函数尾\n")
+	_, _ = fmt.Fprintf(g.out, "\tmov ebx,[@s_ebp]\n\tmov [@s_esp],ebx\n")                //s_leave
+	_, _ = fmt.Fprintf(g.out, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
+	_, _ = fmt.Fprintf(g.out, "\tpop ebx\n\tmov [@s_ebp],ebx\n")                         //s_ebp
+	_, _ = fmt.Fprintf(g.out, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
+	_, _ = fmt.Fprintf(g.out, "\tmov esp,ebp\n\tpop ebp\n\tret\n")                       //leave
+}
+
+// 为局部变量开辟新的空间，包括临时变量，但不包含参数变量，参数变量的空间一般在调用函数值前申请入栈的
+func (g *codegen) genLocvar(val int) {
+	_, _ = fmt.Fprintf(g.out, "\tpush %d\n", val)
 }
 
 /**
