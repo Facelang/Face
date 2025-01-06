@@ -102,6 +102,20 @@ func (fn *ProgFunc) flushargs(table *ProgTable) {
 	fn.flushed = 1
 }
 
+// 弹出多个局部变量
+func (fn *ProgFunc) poplocalvars(table *ProgTable, num int) {
+	for i := 0; i < num; i++ {
+		// 删除符号表的变量信息
+		//if fn.localVars[len(fn.localVars)-1].name[0] != '@' {
+		//
+		//}
+		//table.
+		fn.localVars
+	}
+}
+
+void fun_record::poplocalvars(int num)
+
 type ProgTable struct {
 	fnRecList   map[string]*ProgFunc // 变量声明列表
 	varRecList  map[string]*ProgDec  // 函数声明列表
@@ -125,10 +139,11 @@ func (t *ProgTable) addFn(gen *codegen, f *ProgFunc) {
 
 func (t *ProgTable) addVar(v *ProgDec) {
 	if _, ok := t.varRecList[v.name]; ok {
-		// 记录异常
+		// 为了简化语法，这里不允许重复定义
+		_ = fmt.Errorf("(Var)重复定义【%s】\n", f.name)
+		os.Exit(1)
 	}
 	t.varRecList[v.name] = v
-	fmt.Printf("\t\t\t全局变量 <%s>(%s)\n", v.kind, v.name)
 }
 
 func (t *ProgTable) addRealArg(arg *ProgDec, vn *int) {
@@ -146,6 +161,26 @@ func (t *ProgTable) getVar(name string) *ProgDec {
 		return v
 	}
 	panic("函数被调用之前没有合法的声明。\\n")
+}
+
+func (t *ProgTable) delVar(name string) *ProgDec {
+	if v, ok := t.varRecList[name]; ok {
+
+	}
+}
+
+void Table::delvar(string var_name)//删除变量记录
+{
+if(var_map.find(var_name)!=var_map.end())//有记录
+{
+var_record * pvar=var_map[var_name];
+delete pvar;
+var_map.erase(var_name);
+}
+else
+{
+//cout<<"删除的变量名成不存在！"<<endl;
+}
 }
 
 func (t *ProgTable) genCall(name string, vn *int) *ProgDec {

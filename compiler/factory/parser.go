@@ -204,13 +204,13 @@ func (p *parser) funtail() {
 	level := 0 // 复合语句的层次
 	token := p.lexer.NextToken()
 	if token == SEMICOLON {
-		p.progTable.addFn(fn)
+		p.progTable.addFn(p.gen, p.progFn)
 		return
-	} else if token == LBRACE { // 函数定义
-		fn.defined = 1 // 标记函数定义属性
-		p.progTable.addFn(fn)
-		// 解析代码块
-		//wait=1;
+	} else if token == LBRACE { // {函数定义}
+		p.progFn.defined = 1 // 标记函数定义属性
+		p.progTable.addFn(p.gen, p.progFn)
+		p.lexer.Back(token)
+
 		p.block(0, &level, 0, 0)
 		//level=0;//恢复
 		//tfun.poplocalvars(-1);//清除参数
@@ -268,16 +268,16 @@ func (p *parser) varlist(token Token, v *ProgDec) {
 }
 
 // <block>		->	lbrac<childprogram>rbrac
-func (p *parser) block(fn *ProgFunc, initVarNum int, level *int, lopId int, blockAddr int) {
-	//token := p.lexer.NextToken() //
+func (p *parser) block(initVarNum int, level *int, lopId int, blockAddr int) {
+	token := p.lexer.NextToken()
 	// 判断大括号
 	varNum := initVarNum
 	*level += 1
 
-	p.childprogram(fn, &varNum, level, lopId, blockAddr)
+	p.childprogram(&varNum, level, lopId, blockAddr)
 
 	*level -= 1
-	fn.poplocalvars(varNum)
+	p.progFn.poplocalvars(varNum)
 }
 
 var rbracislost = 0 //}丢失异常，维护恢复,紧急恢复
