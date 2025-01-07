@@ -3,6 +3,7 @@ package factory
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 // ProgDec 变量声明记录
@@ -32,22 +33,24 @@ type ProgFunc struct {
 	hadret    int        // 记录是否含有返回语句
 }
 
-func (fn *ProgFunc) addArg(v *ProgDec) {
+func (fn *ProgFunc) addArg(gen *codegen, v *ProgDec) {
 	fn.args = append(fn.args, v.kind)
-	fn.addLocalVar(v)
+	fn.addLocalVar(gen, v) // 把参数当作变量临时存储在局部列表里边
 }
 
-func (fn *ProgFunc) addLocalVar(v *ProgDec) {
+// 添加一个局部变量
+func (fn *ProgFunc) addLocalVar(gen *codegen, v *ProgDec) {
 	//局部变量定义的缓冲机制，defined==1之前，是不写入符号表的，因为此时还不能确定是不是函数定义
 
 	if fn.defined == 0 { //还是参数声明
 		fn.localVars = append(fn.localVars, v)
 	} else {
 		fn.localVars = append(fn.localVars, v)
+		gen.parser.progTable.addVar(v)
 		// 局部变量的地址按照ebp-4*count的方式变化,修改
 		v.localAddr = -4 * (len(fn.localVars) - len(fn.args))
 		//代码中为局部变量开辟临时空间
-		//genLocvar(0);
+		gen.locvar(0)
 	}
 }
 
@@ -61,32 +64,46 @@ func (fn *ProgFunc) exist(name string) bool {
 	return false
 }
 
-func (fn *ProgFunc) createTempVar(kind string, hasVal bool, vn *int) *ProgDec {
+func NumberVal(input string) int {
+	r, _ := strconv.Atoi(input)
+	return r
+}
+
+func (fn *ProgFunc) createTempVar(p *parser, kind, val string, hasVal bool, vn *int) *ProgDec {
 	// 创建临时变量记录
 	temp := &ProgDec{kind: kind}
 	switch kind {
 	case "int":
 		if hasVal {
-			temp.intVal = num // 取值
+			temp.intVal = NumberVal(val) // 取值
 		}
 	case "char":
 		temp.charVal = ' '
 	case "string":
 		if hasVal {
-			temp.strValId = table.addstring()
+			temp.strValId = p.progTable.addString(val)
 		} else {
 			temp.strValId = -1
 		}
 	}
-	temp.name = genName("temp", kind, "")
-	*vn += 1
-
+	temp.name = p.gen.id("temp", kind, "")
+	*vn += 1 // 局部变量计数
+	// 添加临时变量入栈
+	// 记录当前的局部变量
 	fn.localVars = append(fn.localVars, temp)
-	table.addVar(temp)
-
+	p.progTable.addVar(temp) // 应该可以不写入名字表，但是为了保持变量清除的一致性，作此操作
+	// 计算地址
 	temp.localAddr = -4 * (len(fn.localVars) - len(fn.args))
-	genLocvar(temp.strValId)
+	// 代码中为局部变量开辟临时空间
+	p.gen.locvar(temp.strValId)
 	return temp
+}
+
+/**
+ * 取得上一个进栈的变量的地址（esp相对于ebp偏移）
+ */
+func (fn *ProgFunc) getCurAddr() int {
+	return -4 * (len(fn.localVars) - len(fn.args))
 }
 
 // 将参数写到符号表
@@ -104,17 +121,20 @@ func (fn *ProgFunc) flushargs(table *ProgTable) {
 
 // 弹出多个局部变量
 func (fn *ProgFunc) poplocalvars(table *ProgTable, num int) {
+	if num < 0 { // 函数定义结束 [全部清除]
+		for i := 0; i < len(fn.args); i++ {
+			table.delVar(fn.localVars[i].name) // 删除参数变量
+		}
+		fn.localVars = fn.localVars[:0]
+		return
+	}
+
 	for i := 0; i < num; i++ {
-		// 删除符号表的变量信息
-		//if fn.localVars[len(fn.localVars)-1].name[0] != '@' {
-		//
-		//}
-		//table.
-		fn.localVars
+		last := fn.localVars[len(fn.localVars)-1]
+		fn.localVars = fn.localVars[:len(fn.localVars)-1]
+		table.delVar(last.name)
 	}
 }
-
-void fun_record::poplocalvars(int num)
 
 type ProgTable struct {
 	fnRecList   map[string]*ProgFunc // 变量声明列表
@@ -140,18 +160,30 @@ func (t *ProgTable) addFn(gen *codegen, f *ProgFunc) {
 func (t *ProgTable) addVar(v *ProgDec) {
 	if _, ok := t.varRecList[v.name]; ok {
 		// 为了简化语法，这里不允许重复定义
-		_ = fmt.Errorf("(Var)重复定义【%s】\n", f.name)
+		_ = fmt.Errorf("(Var)重复定义【%s】\n", v.name)
 		os.Exit(1)
 	}
 	t.varRecList[v.name] = v
 }
 
-func (t *ProgTable) addRealArg(arg *ProgDec, vn *int) {
+var stringId = 0
+
+func (t *ProgTable) addString(val string) int {
+	stringId += 1
+	t.stringTable = append(t.stringTable, &val)
+	return stringId
+}
+
+func (t *ProgTable) getString(index int) string {
+	return *t.stringTable[index]
+}
+
+func (t *ProgTable) addRealArg(gen *codegen, arg *ProgDec, vn *int) {
 	if arg.kind == "string" {
 		empty := ProgDec{
 			kind: "string",
 		}
-		arg = genExp(ADD, &empty, arg, vn)
+		arg = gen.exp(ADD, &empty, arg, vn)
 	}
 	t.realArgList = append(t.realArgList, arg)
 }
@@ -163,80 +195,10 @@ func (t *ProgTable) getVar(name string) *ProgDec {
 	panic("函数被调用之前没有合法的声明。\\n")
 }
 
-func (t *ProgTable) delVar(name string) *ProgDec {
-	if v, ok := t.varRecList[name]; ok {
-
+func (t *ProgTable) delVar(name string) {
+	if _, ok := t.varRecList[name]; ok {
+		delete(t.varRecList, name)
 	}
-}
-
-void Table::delvar(string var_name)//删除变量记录
-{
-if(var_map.find(var_name)!=var_map.end())//有记录
-{
-var_record * pvar=var_map[var_name];
-delete pvar;
-var_map.erase(var_name);
-}
-else
-{
-//cout<<"删除的变量名成不存在！"<<endl;
-}
-}
-
-func (t *ProgTable) genCall(name string, vn *int) *ProgDec {
-	if fn, ok := t.fnRecList[name]; ok {
-		l := len(t.realArgList)
-		m := len(fn.args)
-		if l < m {
-			panic("函数实参的类型不能与函数的形参声明严格匹配。\\n")
-		}
-		// 产生参数进栈代码
-		for i, j := l-1, m-1; j >= 0; i, j = i-1, j-1 {
-			kind := t.realArgList[i].kind
-			if kind != fn.args[j] {
-				panic("函数实参的类型不能与函数的形参声明严格匹配。\\n")
-			}
-			ret := t.realArgList[i]
-			if ret.kind == "string" {
-				_, _ = fmt.Fprintf(nil, "\tmov eax,[ebp%d]\n", ret.localAddr)
-			} else {
-				if ret.localAddr == 0 { // 全局的？
-					_, _ = fmt.Fprintf(nil, "\tmov eax,[@var%s]\n", ret.name)
-				} else { // 局部的？
-					if ret.localAddr < 0 {
-						_, _ = fmt.Fprintf(nil, "\tmov eax,[@ebp%d]\n", ret.localAddr)
-					} else {
-						_, _ = fmt.Fprintf(nil, "\tmov eax,[@ebp+%d]\n", ret.localAddr)
-					}
-				}
-			}
-			_, _ = fmt.Fprintf(nil, "\tpush eax\n")
-		}
-		// 调用代码
-		_, _ = fmt.Fprintf(nil, "\tcall %s\n", name)
-		_, _ = fmt.Fprintf(nil, "\tadd esp,%d\n", 4*l)
-
-		// 产生函数返回代码
-		// 非void函数在函数返回的时候将eax的数据放到临时变量中，为调用代码使用
-		if fn.kind != "void" {
-			// 创建临时变量
-			//pRec=tfun.create_tmpvar(pfun->type,0,var_num);//创建临时变量
-			v := &ProgDec{}
-			_, _ = fmt.Fprintf(nil, "\tmov [ebp%d],eax\n", v.localAddr)
-			if fn.kind == "string" { //返回的是临时string，必须拷贝
-				empty := ProgDec{
-					kind: "string",
-				}
-				v = genExp(ADD, &empty, v, vn)
-			}
-		}
-
-		// 清除实际参数
-		for ; m > 0; m-- {
-			t.realArgList = t.realArgList[:len(t.realArgList)-1]
-		}
-	}
-	panic("变量在使用之前没有合法的声明。\\n")
 }
 
 // 测试局部变量，参数的名字是否重复，主要应对变量的重复定义，全局变量和函数不需要调用他

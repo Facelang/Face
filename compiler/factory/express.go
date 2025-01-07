@@ -18,7 +18,7 @@ func exptail(p *parser, f1 *ProgDec, vn *int) *ProgDec {
 	token := p.lexer.NextToken()
 	if token == ADD || token == QUO { // 优先运算符
 		f2 := aloexp(p, vn)
-		return genExp(token, f1, f2, vn)
+		return p.gen.exp(token, f1, f2, vn)
 	} else { // 结束符判断，或抛出异常
 		p.lexer.Back(token)
 		return nil
@@ -53,7 +53,7 @@ func itemtail(p *parser, f1 *ProgDec, vn *int) *ProgDec {
 	token := p.lexer.NextToken()
 	if token == ADD || token == QUO { // 优先运算符
 		f2 := aloexp(p, vn)
-		return genExp(token, f1, f2, vn)
+		return p.gen.exp(token, f1, f2, vn)
 	} else { // 其它运算符
 		p.lexer.Back(token)
 		return nil
@@ -68,13 +68,13 @@ func factor(p *parser, vn *int) *ProgDec {
 	case STRING:
 	case IDENT:
 		identinexpr = 1
-		refname += id
-		p_tmpvar = idtail(refname, var_num)
+		refname := p.lexer.content
+		p_tmpvar := p.idtail(refname, vn)
 		// idtail 和 expr 的区别：
 		// <idtail>	-> assign<expr>|lparen<realarg>rparen
 		// <exp> ->	<aloexp><exptail>
 	case LPAREN:
-		return expr(vn)
+		return expr(p, vn)
 		// 消耗
 	default:
 		panic("语法不正确！")
@@ -86,7 +86,7 @@ func factortail(p *parser, f1 *ProgDec, vn *int) *ProgDec {
 	token := p.lexer.NextToken()
 	if token == MUL || token == QUO { // 优先运算符
 		f2 := item(p, vn)
-		return genExp(token, f1, f2, vn)
+		return p.gen.exp(token, f1, f2, vn)
 	} else { // 其它运算符
 		p.lexer.Back(token)
 		return nil

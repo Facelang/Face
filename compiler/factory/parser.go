@@ -2,6 +2,7 @@ package factory
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 )
 
@@ -20,7 +21,7 @@ func Parser(file string) ParserFactory {
 	out, err := os.Open(file + ".out")
 	gen := &codegen{out: out}
 
-	return &parser{
+	p := &parser{
 		file:      file,
 		err:       err,
 		gen:       gen,
@@ -28,6 +29,10 @@ func Parser(file string) ParserFactory {
 		progFn:    nil,
 		progTable: &ProgTable{},
 	}
+
+	gen.parser = p
+
+	return p
 }
 
 type parser struct {
@@ -43,7 +48,23 @@ func (p *parser) Parse() (interface{}, error) {
 	if p.err != nil {
 		return nil, p.err
 	}
-	return p.program()
+	for {
+		token := p.lexer.NextToken()
+		if token == EOF {
+			break
+		}
+
+		fmt.Printf("Token: %v, %s", token, p.lexer.content)
+		if rand.Intn(10) > 7 {
+			p.lexer.Back(token)
+			fmt.Printf(" BACK\n")
+		} else {
+			fmt.Printf(" \n")
+		}
+	}
+
+	return nil, nil
+	//return p.program()
 }
 
 // Type -> char | int | void
@@ -64,7 +85,6 @@ func (p *parser) kind() string {
 	}
 }
 
-//
 func (p *parser) ident() string {
 	token := p.lexer.NextToken()
 	if token != IDENT {
@@ -134,27 +154,41 @@ func (p *parser) dec(token Token) {
 
 // dectail -> semicon|<varlist>semicon|lparen<para>rparen<block>
 func (p *parser) dectail(kind, name string) {
-	switch token := p.lexer.NextToken(); token {
-	case SEMICOLON:
-		v := ProgDec{kind: kind, name: name}
-		if v.kind == "string" {
-			v.strValId = -2
-		}
-		p.progTable.addVar(&v)
-	case LPAREN:
+	token := p.lexer.NextToken()
+	if token == LPAREN { // type name(...); 函数声明
 		p.progFn = &ProgFunc{
 			kind: kind,
 			name: name,
 		}
 		p.params()
 		p.funtail()
-	default:
+	} else { // 其它情况，结束，或列表定义
 		v := ProgDec{kind: kind, name: name}
 		if v.kind == "string" {
 			v.strValId = -2
 		}
 		p.progTable.addVar(&v)
-		p.varlist(token, &v) //可能是^,会向下取符号，不需要重复取
+
+		//p.varlist(token, &v) //可能是^,会向下取符号，不需要重复取
+		// <varlist>	->	comma ident<varlist>|^
+
+		for {
+			if token == COMMA { // type name1, name2, ...
+				nv := &ProgDec{
+					kind: v.kind,
+					name: p.ident(),
+				}
+				if nv.kind == "string" {
+					nv.strValId = -2
+				}
+				p.progTable.addVar(nv)
+				token = p.lexer.NextToken()
+			} else if token == SEMICOLON { // ; 结束
+				return
+			} else {
+				panic("语法不正确 dec")
+			}
+		}
 	}
 }
 
@@ -165,7 +199,7 @@ func (p *parser) params() {
 		return
 	}
 	for {
-		p.para()
+		p.para() // type name 写入参数表
 
 		// <paralist> -> comma<type>ident<paralist>|^
 		token = p.lexer.NextToken()
@@ -182,16 +216,14 @@ func (p *parser) params() {
 func (p *parser) para() {
 	kind := p.kind()
 	id := p.ident()
-	if p.progTable.exist(id) {
+	if p.progTable.exist(id) { // todo
 		panic("参数名称重复！")
 	}
 	v := ProgDec{
 		kind: kind,
 		name: id,
 	}
-
-	p.progFn.addArg(&v)
-	p.progTable.addVar(&v)
+	p.progFn.addArg(p.gen, &v)
 }
 
 // funtail	-> <block>|semicon TODO
@@ -204,7 +236,8 @@ func (p *parser) funtail() {
 	level := 0 // 复合语句的层次
 	token := p.lexer.NextToken()
 	if token == SEMICOLON {
-		p.progTable.addFn(p.gen, p.progFn)
+		// defined = 0
+		p.progTable.addFn(p.gen, p.progFn) // 添加函数声明记录
 		return
 	} else if token == LBRACE { // {函数定义}
 		p.progFn.defined = 1 // 标记函数定义属性
@@ -212,64 +245,25 @@ func (p *parser) funtail() {
 		p.lexer.Back(token)
 
 		p.block(0, &level, 0, 0)
-		//level=0;//恢复
-		//tfun.poplocalvars(-1);//清除参数
-		//genFuntail();
+		level = 0                              // 恢复
+		p.progFn.poplocalvars(p.progTable, -1) // 清除参数， block 中也会调用同，什么意思
+		p.gen.funtail(p.progFn)
 		return
-	} else if token == IDENT {
-		//||token==rsv_if||
-		//token==rsv_while||token==rsv_return||
-		//token==rsv_break||token==rsv_continue ||
-		//token==rsv_in||token==rsv_out||token==rbrac
-		// 这里目前不清楚
-		//BACK
-		//block(0,level,0,0);
-		//level=0;//恢复
-		//return ;
-
-		//else if token==rsv_void||token==rsv_int||token==rsv_char||token==rsv_string
-		//synterror(semiconlost,-1);
-		//BACK
-		//return ;
-
-		//else
-		//synterror(semiconwrong,0);
-		//return ;
-
+	} else if token == IDENT || token == IF || token == WHILE || token == RETURN ||
+		token == CONTINUE || token == IN || token == OUT || token == RBRACE {
+		// 关键字语句 todo
+		p.lexer.Back(token)
+		p.block(0, &level, 0, 0)
+		level = 0 // 恢复
+		return
+	} else {
+		panic("; 结束符缺失！1")
 	}
-}
-
-// <varlist>	->	comma ident<varlist>|^
-func (p *parser) varlist(token Token, v *ProgDec) {
-	switch token {
-	case COMMA:
-		token = p.lexer.NextToken()
-		if token != IDENT {
-			panic("类型不正确！")
-		}
-		name := p.lexer.content
-		nv := &ProgDec{
-			kind: v.kind,
-			name: name,
-		}
-		if v.kind == "string" {
-			nv.strValId = -2
-		}
-		p.progTable.addVar(nv)
-		token = p.lexer.NextToken()
-		p.varlist(token, v)
-		return
-	case SEMICOLON:
-		return
-	default:
-		panic("语法不正确")
-	}
-
 }
 
 // <block>		->	lbrac<childprogram>rbrac
 func (p *parser) block(initVarNum int, level *int, lopId int, blockAddr int) {
-	token := p.lexer.NextToken()
+	p.require(RBRACE)
 	// 判断大括号
 	varNum := initVarNum
 	*level += 1
@@ -277,181 +271,195 @@ func (p *parser) block(initVarNum int, level *int, lopId int, blockAddr int) {
 	p.childprogram(&varNum, level, lopId, blockAddr)
 
 	*level -= 1
-	p.progFn.poplocalvars(varNum)
+	p.progFn.poplocalvars(p.progTable, varNum) // 要清除局部变量名字表
 }
 
 var rbracislost = 0 //}丢失异常，维护恢复,紧急恢复
-func (p *parser) childprogram(fn *ProgFunc, vn *int, level *int, lopId int, blockAddr int) {
-	token := p.lexer.NextToken()
-
-	if token == SEMICOLON || p.keywords(token,
-		[]string{"while", "if", "return", "break", "continue", "in", "out"}) {
-		//statement(vn, level, lopId, blockAddr)
-		//childprogram(vn, level, lopId, blockAddr)
-	} else if p.keywords(token, []string{"void", "int", "char", "string"}) {
-		p.localdec(fn, vn, level)
-		if rbracislost == 1 {
-			rbracislost = 0
-		} else {
-			p.childprogram(fn, vn, level, lopId, blockAddr)
-		}
-	} else if token == IDENT {
-		//statement(vn, level, lopId, blockAddr)
-		//childprogram(vn, level, lopId, blockAddr)
-	} else if token == RBRACE {
+func (p *parser) childprogram(vn *int, level *int, lopId int, blockAddr int) {
+	switch token := p.lexer.NextToken(); token {
+	case SEMICOLON, WHILE, IF, RETURN, BREAK, CONTINUE, IN, OUT: // 关键字语法， & 结束符
+		p.statement(token, vn, level, lopId, blockAddr)
+		p.childprogram(vn, level, lopId, blockAddr)
 		return
-	} else {
-		panic("语法错误！！！")
-	}
-}
-
-func (p *parser) keywords(token Token, input []string) bool {
-	if token != IDENT {
-		return false
-	}
-	for _, k := range input {
-		if k == p.lexer.content {
-			return true
+	case VOID, INT, CHAR, STRING: // 数据类型， 局部变量定义
+		p.localdec(vn, level)
+		if rbracislost == 1 { // 哪种情况会使用
+			rbracislost = 0
+		} else { // 为什么调用子程序？
+			p.childprogram(vn, level, lopId, blockAddr)
 		}
+		return
+	case RBRACE: // 子程序结束， 开始符号在外部就被使用
+		return
+	default:
+		panic("语法解析错误！")
 	}
-	return false
 }
 
 // <localdec>	->	<type>ident<lcoaldectail>semicon
-func (p *parser) localdec(fn *ProgFunc, vn *int, level *int) {
-	kind := p.kind()
-	token := p.lexer.NextToken()
-	if token != IDENT {
-		panic("类型不正确！")
-	}
-	name := p.lexer.content
-	if p.progTable.exist(name) {
-		panic("参数名称重复！")
-	}
+func (p *parser) localdec(vn *int, level *int) {
 	v := ProgDec{
-		kind: kind,
-		name: name,
+		kind: p.kind(),
+		name: p.ident(),
 	}
-	fn.addLocalVar(&v)
+	if p.progTable.exist(v.name) {
+		panic("变量重复定义： localdec 1")
+	}
+	p.progFn.addLocalVar(p.gen, &v) //添加一个局部变量
 	*vn += 1
-	p.localdectail(fn, kind, vn, level)
-}
-
-// <localvartail>	->	comma ident<localvartail>|^
-func (p *parser) localdectail(fn *ProgFunc, kind string, vn *int, level *int) {
-	token := p.lexer.NextToken()
-	if token == COMMA {
-		token = p.lexer.NextToken()
-		// 直接取变量名
-		name := p.lexer.content
-		if p.progTable.exist(name) {
-			panic("参数名称重复！")
+	// p.localdectail(v.kind, vn, level)
+	// <localvartail>	->	comma ident<localvartail>|^
+	for {
+		token := p.lexer.NextToken()
+		if token == COMMA {
+			v = ProgDec{
+				kind: v.kind,
+				name: p.ident(),
+			}
+			if p.progTable.exist(v.name) {
+				panic("变量重复定义： localdec 2")
+			}
+			p.progFn.addLocalVar(p.gen, &v)
+			*vn += 1
+		} else if token == SEMICOLON {
+			return
+		} else {
+			panic("; 结束符缺失！2")
 		}
-		v := ProgDec{
-			kind: kind,
-			name: name,
-		}
-		fn.addLocalVar(&v)
-		*vn += 1
-		p.localdectail(fn, kind, vn, level)
-	} else if token == SEMICOLON {
-		return
-	} else {
-		panic("语法错误！！！")
 	}
 }
 
 // <statement>	->	ident<idtail>semicon|<whilestat>|<ifstat>|<retstat>|semicon|rsv_break semicon|rsv_continue semicon
-func (p *parser) statement(fn *ProgFunc, token Token, vn *int, level *int, lopId int, blockAddr int) {
-	refname := ""
+func (p *parser) statement(token Token, vn *int, level *int, lopId int, blockAddr int) {
 	switch token {
 	case SEMICOLON:
 		return
+	//case WHILE:
+	//	whilestat(var_num, level)
+	//	return
+	//case IF:
+	//	ifstat(var_num, level, lopId, blockAddr)
+	//	return
+	//case BREAK, CONTINUE:
+	//	p.require(SEMICOLON)
+	//	if lopId != 0 {
+	//		p.gen.block(p.progFn, blockAddr)
+	//		if token == BREAK {
+	//			p.gen.fprintf("\tjmp @while_%d_exit\n", lopId)
+	//		} else {
+	//			p.gen.fprintf("\tjmp @while_%d_lop\n", lopId)
+	//		}
+	//	} else {
+	//		panic("break, continue 语句不能出现在while之外。\n")
+	//	}
+	case RETURN:
+		p.retstat(vn, level)
+		break
+	case IN:
+		p.require(SHL)
+		id := p.ident()
+		v := p.progTable.getVar(id)
+		p.gen.input(v, vn)
+		p.require(SEMICOLON)
+	case OUT:
+		p.require(SHR)
+		p.gen.output(expr(p, vn), vn)
+		p.require(SEMICOLON)
 	case IDENT:
-		switch p.lexer.content {
-		case "while":
-			whilestat(var_num, level)
-			return
-		case "if":
-			ifstat(var_num, level, lopId, blockAddr)
-			return
-		case "break": // 这个还比较复杂
-		// TODO
-		case "return":
-			retstat(var_num, level)
-			return
-		case "in": // todo
-		case "out": //
-		default: // 非关键字，申明 或 定义语句
-			refname += p.lexer.content // 变量名
-			p.idtail(refname, vn)
-			nextToken()
-			if (!match(semicon)) //赋值语句或者函数调用语句丢失分号，记得回退
-			{
-				synterror(semiconlost, -1)
-				BACK
-			}
-			break
-		}
+		p.idtail(p.lexer.content, vn)
+		p.require(SEMICOLON)
+	default:
+		panic("unhandled default case")
 	}
 }
 
-//<idtail>	->	assign<expr>|lparen<realarg>rparen
+// <retstat>	->	rsv_return<expr>semicon
+func (p *parser) retstat(vn *int, level *int) {
+	//p.returntail(vn, level)
+	// <returntail>	->	<expr>|^
+	if *level == 1 { // todo 不确定什么作用
+		p.progFn.hadret = 1
+	}
+	token := p.lexer.NextToken()
+	if token == IDENT || token == V_INT || token == V_CHAR || token == V_STRING || token == LPAREN {
+		p.lexer.Back(token)
+		ret := expr(p, vn)
+		if ret != nil && ret.kind == p.progFn.kind {
+			panic("返回值类型不兼容")
+		}
+		p.gen.ret(ret, vn)
+	} else if token == SEMICOLON {
+		p.lexer.Back(token)
+		if p.progFn.kind != "void" {
+			panic("返回值类型不兼容 void")
+		}
+		p.gen.ret(nil, vn)
+	} else if token == RBRACE {
+		p.lexer.Back(token)
+		return
+	} else {
+		panic("语法错误！ return")
+	}
+
+	p.require(SEMICOLON)
+}
+
+var identinexpr = 0 // 指示标识符是否单独出现在表达式中
+
+// <idtail>	->	assign<expr>|lparen<realarg>rparen
 // 赋值语句 或 函数调用
 func (p *parser) idtail(refname string, vn *int) *ProgDec {
 	token := p.lexer.NextToken()
 	if token == ASSIGN { // 赋值语句
 		src := expr(p, vn)
 		des := p.progTable.getVar(refname)
-		return genAss(des, src, vn)
+		return p.gen.assign(des, src, vn)
 	} else if token == LPAREN { // 函数调用
 		p.realarg(refname, vn) // 调用参数写入符号表
-		var_record * var_ret = p.progTable.genCall(refname, var_num)
-		nextToken()
-		if !match(rparen) {
-			synterror(rparenlost, -1)
-			BACK
-		}
-		return var_ret
+		p.gen.call(p.progTable, refname, vn)
+		//ret := p.progTable.genCall(refname, vn)
+		p.require(RPAREN)
+		return ret
 	} else if identinexpr == 1 { //表达式中可以单独出现标识符，基于此消除表达式中非a=b类型的错误
 		identinexpr = 0
-		BACK
+		p.lexer.Back(token)
 		return p.progTable.getVar(refname)
 	} else {
 		panic("语法错误!!")
 	}
 }
 
-//<realarg>	->	<expr><arglist>|^
+// <realarg>	->	<expr><arglist>|^
 // 参数为表达式列表
 func (p *parser) realarg(refname string, vn *int) {
 	token := p.lexer.NextToken()
 	if token == RPAREN || token == SEMICOLON { // ), ; 终结符
 		p.lexer.Back(token)
 		return
-	} else if token == IDENT || token == INT || token == CHAR || token == STRING || token == LPAREN {
+	} else if token == IDENT || token == V_INT || token == V_CHAR || token == V_STRING || token == LPAREN {
 		// 可取值类型， 变量， 数字，字符，字符串， （） 使用括号括起来的参数
 		p.lexer.Back(token)
-		p.progTable.addRealArg(expr(p, vn), vn)
+		p.progTable.addRealArg(p.gen, expr(p, vn), vn)
 		p.arglist(vn)
 	} else {
 		panic("语法错误！")
 	}
 }
 
-//<arglist>	->	comma<expr><arglist>|^
+// <arglist>	->	comma<expr><arglist>|^
 func (p *parser) arglist(vn *int) {
 	token := p.lexer.NextToken()
 	if token == COMMA {
 		token = p.lexer.NextToken()
-		if token == IDENT || token == INT || token == CHAR || token == STRING || token == LPAREN {
+		// 值类型（变量， 数字， 字符， 字符串），结束符
+		if token == IDENT || token == V_INT || token == V_CHAR || token == V_STRING || token == LPAREN {
 			p.lexer.Back(token)
-			p.progTable.addRealArg(expr(p, vn), vn)
+			p.progTable.addRealArg(p.gen, expr(p, vn), vn)
 			p.arglist(vn)
 		} else {
 			panic("语法错误！")
 		}
-	} else if token == RPAREN || token == SEMICOLON {
+	} else if token == RPAREN || token == SEMICOLON { // ) ; 结束符
 		p.lexer.Back(token)
 		return
 	} else {
