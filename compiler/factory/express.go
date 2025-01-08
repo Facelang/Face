@@ -64,17 +64,25 @@ func itemtail(p *parser, f1 *ProgDec, vn *int) *ProgDec {
 func factor(p *parser, vn *int) *ProgDec {
 	switch token := p.lexer.NextToken(); token {
 	case CHAR: // 值类型，直接创建【临时变量】
+		val := p.lexer.content
+		return p.progFn.createTempVar(p, "char", val, true, vn)
 	case INT:
+		val := p.lexer.content
+		return p.progFn.createTempVar(p, "int", val, true, vn)
 	case STRING:
+		val := p.lexer.content
+		return p.progFn.createTempVar(p, "string", val, true, vn)
 	case IDENT:
 		identinexpr = 1
 		refname := p.lexer.content
-		p_tmpvar := p.idtail(refname, vn)
+		return p.idtail(refname, vn)
 		// idtail 和 expr 的区别：
 		// <idtail>	-> assign<expr>|lparen<realarg>rparen
 		// <exp> ->	<aloexp><exptail>
 	case LPAREN:
-		return expr(p, vn)
+		ret := expr(p, vn)
+		p.require(RPAREN)
+		return ret
 		// 消耗
 	default:
 		panic("语法不正确！")

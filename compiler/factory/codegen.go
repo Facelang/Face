@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 )
@@ -10,12 +11,8 @@ type codegen struct {
 	parser *parser
 }
 
-func (g *codegen) fprintf(format string, args ...interface{}) {
-	fprintf(g, format, args...)
-}
-
 func fprintf(g *codegen, format string, args ...interface{}) {
-	fprintf(g, format, args...)
+	_, _ = fmt.Fprintf(g.out, format, args...)
 }
 
 /**
@@ -82,7 +79,7 @@ func (g *codegen) assign(dst, src *ProgDec, vn *int) *ProgDec {
 				fprintf(g, "\tmov [ebp+%d],eax\n", dst.localAddr)
 			}
 		}
-	} else {                    //int char 默认处理
+	} else { //int char 默认处理
 		if dst.localAddr == 0 { // 全局的
 			fprintf(g, "\tmov eax,@var_%s\n", dst.name)
 		} else {
@@ -784,7 +781,7 @@ func (g *codegen) input(i *ProgDec, vn *int) {
 				fprintf(g, "\tmov [ebp+%d],eax\n", i.localAddr)
 			}
 		}
-	} else {                  // 猜测应该是 char 类型
+	} else { // 猜测应该是 char 类型
 		if i.localAddr == 0 { // 全局的
 			fprintf(g, "\tmov [@var_%s],bl\n", i.name)
 		} else {

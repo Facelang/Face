@@ -2,12 +2,33 @@ package factory
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 )
 
 type ParserFactory interface {
 	Parse() (interface{}, error)
+}
+
+func OpenFile(filepath string) (*os.File, error) {
+	// 检查文件是否存在
+	if _, err := os.Stat(filepath); err == nil {
+		// 文件已存在，先删除
+		err = os.Remove(filepath)
+		if err != nil {
+			return nil, err
+		}
+	} else if !os.IsNotExist(err) {
+		// 如果是其他错误，直接返回
+		return nil, err
+	}
+
+	// 创建文件
+	file, err := os.Create(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
 }
 
 func Parser(file string) ParserFactory {
@@ -18,16 +39,21 @@ func Parser(file string) ParserFactory {
 	if err != nil {
 		return &parser{err: err}
 	}
-	out, err := os.Open(file + ".out")
+	out, err := OpenFile(file + ".out")
 	gen := &codegen{out: out}
 
 	p := &parser{
-		file:      file,
-		err:       err,
-		gen:       gen,
-		lexer:     lex,
-		progFn:    nil,
-		progTable: &ProgTable{},
+		file:   file,
+		err:    err,
+		gen:    gen,
+		lexer:  lex,
+		progFn: nil,
+		progTable: &ProgTable{
+			fnRecList:   make(map[string]*ProgFunc),
+			varRecList:  make(map[string]*ProgDec),
+			stringTable: make([]*string, 0),
+			realArgList: make([]*ProgDec, 0),
+		},
 	}
 
 	gen.parser = p
@@ -48,28 +74,26 @@ func (p *parser) Parse() (interface{}, error) {
 	if p.err != nil {
 		return nil, p.err
 	}
-	for {
-		token := p.lexer.NextToken()
-		if token == EOF {
-			break
-		}
-
-		fmt.Printf("Token: %v, %s", token, p.lexer.content)
-		if rand.Intn(10) > 7 {
-			p.lexer.Back(token)
-			fmt.Printf(" BACK\n")
-		} else {
-			fmt.Printf(" \n")
-		}
-	}
-
-	return nil, nil
-	//return p.program()
+	//for {
+	//	token := p.lexer.NextToken()
+	//	if token == EOF {
+	//		return nil, nil
+	//	}
+	//
+	//	fmt.Printf("Token: %v, %s", token, p.lexer.content)
+	//	if rand.Intn(10) > 7 {
+	//		p.lexer.Back(token)
+	//		fmt.Printf(" BACK\n")
+	//	} else {
+	//		fmt.Printf(" \n")
+	//	}
+	//}
+	return p.program()
 }
 
 // Type -> char | int | void
-func (p *parser) kind() string {
-	switch token := p.lexer.NextToken(); token {
+func (p *parser) kind(token Token) string {
+	switch token {
 	case CHAR:
 		return "char"
 	case INT:
@@ -136,8 +160,9 @@ func (p *parser) dec(token Token) {
 	if token == SEMICOLON {
 		return
 	} else if token == EXTERN {
+		token = p.lexer.NextToken()
 		v := ProgDec{
-			kind:   p.kind(),
+			kind:   p.kind(token),
 			name:   p.ident(),
 			extern: 1,
 		}
@@ -147,7 +172,7 @@ func (p *parser) dec(token Token) {
 		p.progTable.addVar(&v)
 		p.require(SEMICOLON)
 	} else {
-		p.dectail(p.kind(), p.ident())
+		p.dectail(p.kind(token), p.ident())
 	}
 
 }
@@ -157,8 +182,10 @@ func (p *parser) dectail(kind, name string) {
 	token := p.lexer.NextToken()
 	if token == LPAREN { // type name(...); 函数声明
 		p.progFn = &ProgFunc{
-			kind: kind,
-			name: name,
+			kind:      kind,
+			name:      name,
+			args:      make([]string, 0),
+			localVars: make([]*ProgDec, 0),
 		}
 		p.params()
 		p.funtail()
@@ -214,7 +241,8 @@ func (p *parser) params() {
 }
 
 func (p *parser) para() {
-	kind := p.kind()
+	token := p.lexer.NextToken()
+	kind := p.kind(token)
 	id := p.ident()
 	if p.progTable.exist(id) { // todo
 		panic("参数名称重复！")
@@ -282,7 +310,7 @@ func (p *parser) childprogram(vn *int, level *int, lopId int, blockAddr int) {
 		p.childprogram(vn, level, lopId, blockAddr)
 		return
 	case VOID, INT, CHAR, STRING: // 数据类型， 局部变量定义
-		p.localdec(vn, level)
+		p.localdec(token, vn, level)
 		if rbracislost == 1 { // 哪种情况会使用
 			rbracislost = 0
 		} else { // 为什么调用子程序？
@@ -297,9 +325,9 @@ func (p *parser) childprogram(vn *int, level *int, lopId int, blockAddr int) {
 }
 
 // <localdec>	->	<type>ident<lcoaldectail>semicon
-func (p *parser) localdec(vn *int, level *int) {
+func (p *parser) localdec(token Token, vn *int, level *int) {
 	v := ProgDec{
-		kind: p.kind(),
+		kind: p.kind(token),
 		name: p.ident(),
 	}
 	if p.progTable.exist(v.name) {
@@ -416,8 +444,7 @@ func (p *parser) idtail(refname string, vn *int) *ProgDec {
 		return p.gen.assign(des, src, vn)
 	} else if token == LPAREN { // 函数调用
 		p.realarg(refname, vn) // 调用参数写入符号表
-		p.gen.call(p.progTable, refname, vn)
-		//ret := p.progTable.genCall(refname, vn)
+		ret := p.gen.call(p.progTable, refname, vn)
 		p.require(RPAREN)
 		return ret
 	} else if identinexpr == 1 { //表达式中可以单独出现标识符，基于此消除表达式中非a=b类型的错误
