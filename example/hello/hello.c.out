@@ -11,3 +11,20 @@ main:
 	mov [@s_esp],esp
 	mov esp,ebx
 	;函数头
+	push 0
+	push 0
+	push 0
+	;函数尾
+	mov ebx,[@s_ebp]
+	mov [@s_esp],ebx
+	mov ebx,[@s_esp]
+	mov [@s_esp],esp
+	mov esp,ebx
+	pop ebx
+	mov [@s_ebp],ebx
+	mov ebx,[@s_esp]
+	mov [@s_esp],esp
+	mov esp,ebx
+	mov esp,ebp
+	pop ebp
+	ret

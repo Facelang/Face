@@ -291,7 +291,7 @@ func (p *parser) funtail() {
 
 // <block>		->	lbrac<childprogram>rbrac
 func (p *parser) block(initVarNum int, level *int, lopId int, blockAddr int) {
-	p.require(RBRACE)
+	p.require(LBRACE)
 	// 判断大括号
 	varNum := initVarNum
 	*level += 1
@@ -311,11 +311,11 @@ func (p *parser) childprogram(vn *int, level *int, lopId int, blockAddr int) {
 		return
 	case VOID, INT, CHAR, STRING: // 数据类型， 局部变量定义
 		p.localdec(token, vn, level)
-		if rbracislost == 1 { // 哪种情况会使用
-			rbracislost = 0
-		} else { // 为什么调用子程序？
-			p.childprogram(vn, level, lopId, blockAddr)
-		}
+		//if rbracislost == 1 { // 哪种情况会使用
+		//	rbracislost = 0
+		//} else { // 为什么调用子程序？
+		//	p.childprogram(vn, level, lopId, blockAddr)
+		//}
 		return
 	case RBRACE: // 子程序结束， 开始符号在外部就被使用
 		return
@@ -338,7 +338,7 @@ func (p *parser) localdec(token Token, vn *int, level *int) {
 	// p.localdectail(v.kind, vn, level)
 	// <localvartail>	->	comma ident<localvartail>|^
 	for {
-		token := p.lexer.NextToken()
+		token = p.lexer.NextToken()
 		if token == COMMA {
 			v = ProgDec{
 				kind: v.kind,
