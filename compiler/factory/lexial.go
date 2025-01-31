@@ -66,7 +66,7 @@ func (l *lexer) NextToken() Token {
 			}
 		}
 		l.content = l.buffer.segment()
-		return INT
+		return V_INT
 	} else {
 		switch l.buffer.ch {
 		case '+':
@@ -144,7 +144,7 @@ func (l *lexer) NextToken() Token {
 			}
 			l.buffer.read()
 			l.content = l.buffer.segment()
-			return STRING
+			return V_STRING
 		case '\'': // 读一个字符
 			l.buffer.read()
 			if l.buffer.ch == '\\' {

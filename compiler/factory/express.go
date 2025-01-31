@@ -63,13 +63,13 @@ func itemtail(p *parser, f1 *ProgDec, vn *int) *ProgDec {
 // <factor> -> ident<idtail>|number|chara|lparen<expr>rparen|strings
 func factor(p *parser, vn *int) *ProgDec {
 	switch token := p.lexer.NextToken(); token {
-	case CHAR: // 值类型，直接创建【临时变量】
+	case V_CHAR: // 值类型，直接创建【临时变量】
 		val := p.lexer.content
 		return p.progFn.createTempVar(p, "char", val, true, vn)
-	case INT:
+	case V_INT:
 		val := p.lexer.content
 		return p.progFn.createTempVar(p, "int", val, true, vn)
-	case STRING:
+	case V_STRING:
 		val := p.lexer.content
 		return p.progFn.createTempVar(p, "string", val, true, vn)
 	case IDENT:
