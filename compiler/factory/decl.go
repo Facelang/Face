@@ -208,6 +208,13 @@ func (t *ProgTable) exist(name string) bool {
 	return ok1 || ok2
 }
 
+// 最后处理， 生成数据段中的静态数据区、文字池和辅助栈
+func (t *ProgTable) over(gen *codegen) {
+	// hash_map<string, var_record*, string_hash>::iterator var_i,var_iend=var_map.end();
+	fprintf(gen, "section .data\n")
+
+}
+
 //struct fun_record { //函数声明记录
 //fun_record();//默认构造函数
 //fun_record(const fun_record& f);//拷贝构造函数

@@ -149,6 +149,7 @@ func (p *parser) program() (interface{}, error) {
 	//}
 	token := p.lexer.NextToken()
 	if token == EOF {
+		p.progTable
 		return nil, nil
 	}
 	p.dec(token)
@@ -305,7 +306,7 @@ func (p *parser) block(initVarNum int, level *int, lopId int, blockAddr int) {
 var rbracislost = 0 //}丢失异常，维护恢复,紧急恢复
 func (p *parser) childprogram(vn *int, level *int, lopId int, blockAddr int) {
 	switch token := p.lexer.NextToken(); token {
-	case SEMICOLON, WHILE, IF, RETURN, BREAK, CONTINUE, IN, OUT: // 关键字语法， & 结束符
+	case SEMICOLON, WHILE, IF, RETURN, BREAK, CONTINUE, IN, OUT, IDENT: // 关键字语法 变量||函数， & 结束符
 		p.statement(token, vn, level, lopId, blockAddr)
 		p.childprogram(vn, level, lopId, blockAddr)
 		return
@@ -316,6 +317,7 @@ func (p *parser) childprogram(vn *int, level *int, lopId int, blockAddr int) {
 		//} else { // 为什么调用子程序？
 		//	p.childprogram(vn, level, lopId, blockAddr)
 		//}
+		p.childprogram(vn, level, lopId, blockAddr)
 		return
 	case RBRACE: // 子程序结束， 开始符号在外部就被使用
 		return
@@ -384,13 +386,13 @@ func (p *parser) statement(token Token, vn *int, level *int, lopId int, blockAdd
 		p.retstat(vn, level)
 		break
 	case IN:
-		p.require(SHL)
+		p.require(SHR) // >>
 		id := p.ident()
 		v := p.progTable.getVar(id)
 		p.gen.input(v, vn)
 		p.require(SEMICOLON)
 	case OUT:
-		p.require(SHR)
+		p.require(SHL) // <<
 		p.gen.output(expr(p, vn), vn)
 		p.require(SEMICOLON)
 	case IDENT:
@@ -412,7 +414,7 @@ func (p *parser) retstat(vn *int, level *int) {
 	if token == IDENT || token == V_INT || token == V_CHAR || token == V_STRING || token == LPAREN {
 		p.lexer.Back(token)
 		ret := expr(p, vn)
-		if ret != nil && ret.kind == p.progFn.kind {
+		if ret == nil || ret.kind != p.progFn.kind {
 			panic("返回值类型不兼容")
 		}
 		p.gen.ret(ret, vn)
