@@ -7,6 +7,7 @@ import (
 
 type ParserFactory interface {
 	Parse() (interface{}, error)
+	NextToken() (Token, string, int, int)
 }
 
 func OpenFile(filepath string) (*os.File, error) {
@@ -68,6 +69,20 @@ type parser struct {
 	lexer     *lexer   // 读取器
 	progFn    *ProgFunc
 	progTable *ProgTable
+}
+
+func (p *parser) nextToken() Token {
+	token := p.lexer.NextToken()
+	for token == COMMENT {
+		token = p.lexer.NextToken()
+	}
+	return token
+}
+
+func (p *parser) NextToken() (Token, string, int, int) {
+	token := p.nextToken()
+	c := p.lexer.content
+	return token, c, p.lexer.line, p.lexer.col
 }
 
 func (p *parser) Parse() (interface{}, error) {
@@ -149,7 +164,6 @@ func (p *parser) program() (interface{}, error) {
 	//}
 	token := p.lexer.NextToken()
 	if token == EOF {
-		p.progTable
 		return nil, nil
 	}
 	p.dec(token)

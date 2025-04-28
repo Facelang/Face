@@ -1,0 +1,45 @@
+文件: ../example/elf/main.o
+格式: ELF64
+架构: x86_64
+入口点: 0x0
+节数量: 13
+
+节列表:
+名称                   类型         地址         大小
+                     NULL       0x0        0x0
+.text                PROGBITS   0x0        0x3d
+.rela.text           RELA       0x0        0x48
+.data                PROGBITS   0x0        0x4
+.bss                 NOBITS     0x0        0x0
+.rodata              PROGBITS   0x0        0x13
+.comment             PROGBITS   0x0        0x20
+.note.GNU-stack      PROGBITS   0x0        0x0
+.eh_frame            PROGBITS   0x0        0x38
+.rela.eh_frame       RELA       0x0        0x18
+.symtab              SYMTAB     0x0        0xa8
+.strtab              STRTAB     0x0        0x16
+.shstrtab            STRTAB     0x0        0x61
+
+使用Intel语法反汇编:
+
+Disassembly of section .text:
+
+
+0000000000000000 <main>:
+   0000:	55                  	push    rbp
+   0001:	48 89 e5            	mov     rbp,rsp
+   0004:	48 83 ec 10         	sub     rsp,0x30783130
+   0008:	c7 45 fc 02 00 00 00	mov     DWORD PTR [rbp-0x4],0x307832
+   000f:	8b 15 00 00 00 00   	mov     edx,DWORD PTR [rip]
+   0015:	8b 45 fc            	mov     eax,DWORD PTR [rbp-0x4]
+   0018:	01 d0               	add     eax,edx
+   001a:	89 45 f8            	mov     DWORD PTR [rbp-0x8],eax
+   001d:	8b 45 f8            	mov     eax,DWORD PTR [rbp-0x8]
+   0020:	89 c6               	mov     esi,eax
+   0022:	48 8d 05 00 00 00 00	lea     rax,DWORD PTR [rip]
+   0029:	48 89 c7            	mov     rdi,rax
+   002c:	b8 00 00 00 00      	mov     eax,0x307830
+   0031:	e8 00 00 00 00      	call    0x0
+   0036:	b8 00 00 00 00      	mov     eax,0x307830
+   003b:	c9                  	leave
+   003c:	c3                  	ret

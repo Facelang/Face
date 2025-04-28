@@ -183,11 +183,12 @@ func (g *codegen) block(f *ProgFunc, n int) int {
 
 // 产生函数头的代码，因为是在函数解析的过程中进行代码生成，所有默认是用的是tfun的信息opp!=addi
 func (g *codegen) funhead(f *ProgFunc) {
-	fprintf(g, "%s:\n", f.name)                                           //函数头
-	fprintf(g, "\tpush ebp\n\tmov ebp,esp\n")                             //enter
-	fprintf(g, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
-	fprintf(g, "\tmov ebx,[@s_ebp]\n\tpush ebx\n\tmov [@s_ebp],esp\n")    //s_enter
-	fprintf(g, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
+	// ebp 是栈顶， esp 是栈底； push ebp, 等于 ebp 写入 esp 下一个元素， 同时 esp 后移一个指针位。
+	// esp 为写入 ebp 后的下一个地址。mov, 将 ebp 栈顶也设置为 esp 同一起跑线[基址指针]（此时无参）
+	fprintf(g, "%s:\n", f.name) //函数头
+	fprintf(g, "\tpush ebp\n\tmov ebp,esp\n")
+	// 如果需要预分配内存空间 sub rsp, 16             ; 分配16字节的栈空间用于局部变量
+
 	fprintf(g, "\t;函数头\n")
 }
 
@@ -195,12 +196,8 @@ func (g *codegen) funtail(f *ProgFunc) {
 	if f.hadret != 0 { // todo 不知道含义
 		return
 	}
-	fprintf(g, "\t;函数尾\n")
-	fprintf(g, "\tmov ebx,[@s_ebp]\n\tmov [@s_esp],ebx\n")                //s_leave
-	fprintf(g, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
-	fprintf(g, "\tpop ebx\n\tmov [@s_ebp],ebx\n")                         //s_ebp
-	fprintf(g, "\tmov ebx,[@s_esp]\n\tmov [@s_esp],esp\n\tmov esp,ebx\n") //esp<=>[@s_esp]
-	fprintf(g, "\tmov esp,ebp\n\tpop ebp\n\tret\n")                       //leave
+	fprintf(g, "\t;函数尾\n")                          // esp 直接回到[基址指针]，自动放弃预分配空间， 下次调用函数时，空间会被复写。
+	fprintf(g, "\tmov esp,ebp\n\tpop ebp\n\tret\n") //leave
 }
 
 // 为局部变量开辟新的空间，包括临时变量，但不包含参数变量，参数变量的空间一般在调用函数值前申请入栈的

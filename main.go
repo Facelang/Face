@@ -1,17 +1,8 @@
 package main
 
-import (
-	"face-lang/compiler/factory"
-	"os"
-	"strings"
-)
+import "face-lang/compiler/provider/asm"
 
 func main() {
-	//wd, _ := os.Getwd()
-	//filePath := filepath.Join(wd, "example/hello/hello.c")
-	file := "example/hello/hello.c"
-	factory.Program(file)
-	println(strings.Join(os.Environ(), "\n"))
-
-	println("\n\n 解析完成")
+	_ = asm.Program("example/ass/common.s")
+	println("完成编译！")
 }
