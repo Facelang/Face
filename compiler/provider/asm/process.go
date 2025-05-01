@@ -90,6 +90,7 @@ type TemporaryTable struct {
 	CurSegName   string                  // 当前段名称
 	DataLen      int                     // 总数据长度
 	TempFile     *os.File                // 临时文件
+	InstrList    []*InstrRecord          // 指令表
 	MapLabel     map[string]*LabelRecord // 符号映射表
 	DefLabelList []*LabelRecord          // 定义的符号列表
 }
@@ -100,9 +101,16 @@ func NewTemporaryTable() *TemporaryTable {
 		CurSegOff:    0,
 		CurSegName:   "",
 		DataLen:      0,
+		InstrList:    make([]*InstrRecord, 0),
 		MapLabel:     make(map[string]*LabelRecord),
 		DefLabelList: make([]*LabelRecord, 0),
 	}
+}
+
+// PushInstr 将指令解析后添加到临时列表， 指令生产过程需要处理符号地址引用
+func (t *TemporaryTable) PushInstr(instr *InstrRecord) {
+	t.InstrList = append(t.InstrList, instr)
+	t.CurSegOff += instr.WriteOut()
 }
 
 // Exist 检查符号表中是否有指定名称的符号

@@ -12,13 +12,11 @@ type ParserFactory interface {
 }
 
 type parser struct {
-	fileName string   // 解析文件
-	tempFile *os.File // 临时输出文件
-	err      error    // 解析异常
-	//gen       *codegen // 代码生成器
-	lexer *lexer // 读取器
-	//progFn    *ProgFunc
-	//progTable *ProgTable
+	fileName  string          // 解析文件
+	tempFile  *os.File        // 临时输出文件
+	err       error           // 解析异常
+	lexer     *lexer          // 读取器
+	progTable *TemporaryTable // 缓存解析表
 }
 
 func NewFileParser(file string) ParserFactory {
@@ -37,10 +35,11 @@ func NewFileParser(file string) ParserFactory {
 	}
 
 	p := &parser{
-		fileName: file,
-		tempFile: temp,
-		err:      err,
-		lexer:    lex,
+		fileName:  file,
+		tempFile:  temp,
+		err:       err,
+		lexer:     lex,
+		progTable: NewTemporaryTable(),
 	}
 
 	return p
@@ -55,7 +54,7 @@ func (p *parser) number() int {
 	return v
 }
 
-func (p *parser) reg() int {
+func (p *parser) reg() int { // 返回寄存器宽度
 	token := p.NextToken()
 	if token >= BR_AL && token <= BR_BH { // 8位寄存器
 		return 1
@@ -115,9 +114,8 @@ func (p *parser) program() (interface{}, error) {
 		p.require(IDENT)
 		break
 	default:
-		// 进入语法处理
 		p.lexer.Back(token)
-		p.inst()
+		p.inst() // 进入语法处理
 	}
 	return p.program()
 }
@@ -136,7 +134,6 @@ func (p *parser) lbtail(id string) {
 		//case A_EQU: // [暂时忽略] equ 常量？伪指令，所有使用到该符号的，全部替换为值，不存在地址。
 		//	p.require(NUMBER)
 		//	ProcessTable.AddLabel(NewRecWithAddr(id, p.number()))
-		return
 	case COLON: // 代码段（label）, main: 一般是函数名作为一个单独的记号
 		ProcessTable.AddLabel(NewRec(id, false))
 		return
@@ -207,173 +204,162 @@ func (p *parser) valTail(cont *[]int, contLen *int, size int) {
 	}
 }
 
-func (p *parser) mem() {
-	p.require(LBRACK)
-	p.addr()
-	p.require(RBRACK)
-}
-
-func (p *parser) addr() {
-	token := p.NextToken()
-	switch token {
-	case NUMBER: // 直接寻址 [00 xxx 101 disp32]
-		instr.modrm.mod = 0
-		instr.modrm.rm = 5
-		instr.setDisp(p.number(), 4)
-	case IDENT: // 直接寻址 [变量]
-		instr.modrm.mod = 0
-		instr.modrm.rm = 5
-		lr := ProgTable.get(p.id())
-		instr.setDisp(lr.Addr, 4)
-		if ScanLop == 2 { // 第二次扫描记录重定位项
-			if !lr.IsEqu { // 不是equ
-				// 记录符号
-				RelLb = lr
-			}
-		}
-	default: // 寄存器寻址 [eax, edi]
-		p.lexer.Back(token)
-		p.regaddr(token, p.reg())
-	}
-}
-
-func (p *parser) regaddr(basereg Token, kind int) {
-	token := p.NextToken()
-	if token == ADD || token == SUB { // 有变址寄存器
-		p.lexer.Back(token)
-		p.off()
-		p.regaddrtail(basereg, kind, token)
-	} else { // 寄存器间址 00 xxx rrr <esp ebp特殊考虑>
-		if basereg == DR_ESP { //[esp]
-			instr.modrm.mod = 0
-			instr.modrm.rm = 4 // 引导SIB
-			instr.sib.scale = 0
-			instr.sib.index = 4
-			instr.sib.base = 4
-		} else if basereg == DR_EBP { //[ebp],生成汇编代码中未出现
-			instr.modrm.mod = 1 // 8-bit 0 disp，或者mod=2 32-bit 0 disp
-			instr.modrm.rm = 5
-			instr.setDisp(0, 1)
-		} else { // 一般寄存器
-			instr.modrm.mod = 0
-			instr.modrm.rm = int(basereg-BR_AL) - (1-kind%4)*8
-		}
-		p.lexer.Back(token)
-	}
-}
-
-func (p *parser) off() {
-	token := p.NextToken()
-	if token == ADD || token == SUB {
-	} else {
-		msg, _ := fmt.Printf("addr err![line:%d]\n", p.lexer.line)
-		panic(msg)
-	}
-}
-
-func (p *parser) regaddrtail(basereg Token, kind int, sign Token) {
-	token := p.NextToken()
-	switch token {
-	case NUMBER: // 寄存器基址寻址 01/10 xxx rrr disp8/disp32
-		num := p.number()
-		if sign == SUB {
-			num = -num
-		}
-		if num >= -128 && num <= 127 {
-			instr.modrm.mod = 1
-			instr.setDisp(num, 1)
-		} else {
-			instr.modrm.mod = 2
-			instr.setDisp(num, 4)
-		}
-		instr.modrm.rm = int(basereg-BR_AL) - (1-kind%4)*8
-
-		if basereg == DR_ESP { // sib
-			instr.modrm.rm = 4 // 引导SIB
-			instr.sib.scale = 0
-			instr.sib.index = 4
-			instr.sib.base = 4
-		}
-	default: // 基址变址寻址 00 xxx 100 00=scale rrr2=index rrr1=base,不会发生在esp和ebp上，没有生成这样的指令
-		p.lexer.Back(token)
-		typei := p.reg()
-		instr.modrm.mod = 0
-		instr.modrm.rm = 4
-		instr.sib.scale = 0
-		instr.sib.index = int(token-BR_AL) - (1-typei%4)*8
-		instr.sib.base = int(basereg-BR_AL) - (1-kind%4)*8
-	}
-}
-
 // inst 处理指令
 func (p *parser) inst() {
-	instr.init()
 	token := p.NextToken()
 	if token >= I_MOV && token <= I_LEA { // i_mov,i_cmp,i_sub,i_add,i_lea,//2p
-		// 双操作数指令
-		// 读取第一个操作数
-		regNum1 := 0
-		type1 := 0
-		len1 := 0
-		p.opr(&regNum1, &type1, &len1) // regNum = 1, s_type=0, len = 4
+		instr := NewInstrRec(token, 2)
+		instr.OprList[0] = p.opr() // 取第一个操作数
 		p.require(COMMA)
-		// 读取第二个操作数
-		regNum2 := 0
-		type2 := 0
-		len2 := 0
-		p.opr(&regNum2, &type2, &len2) // s_type = 地址类型：寄存器，立即数，内存； len = 寄存器宽度
+		instr.OprList[1] = p.opr() // 取第二个操作数
+		ProcessTable.PushInstr(instr)
 
 		// 生成指令
-		//common.Gen2Op(token, type1, type2, length)
+		//Gen2Op(token, type1, type2, length)
 	} else if token >= I_CALL && token <= I_POP { // i_call,i_int,i_imul,i_idiv,i_neg,i_inc,i_dec,i_jmp,i_je,i_jg,i_jl,i_jge,i_jle,i_jne,i_jna,i_push,i_pop,//1p
-		regNum, kind, size := 0, 0, 0
-		p.opr(&regNum, &kind, &size)
-		Gen1op(token, kind, size)
+		instr := NewInstrRec(token, 1)
+		instr.OprList[0] = p.opr()
+		ProcessTable.PushInstr(instr)
+		//Gen1op(token, kind, size)
 	} else if token == I_RET {
-		Gen0op(token)
+		instr := NewInstrRec(token, 0)
+		ProcessTable.PushInstr(instr)
+		//Gen0op(token)
 	} else {
 		fmt.Printf("opcode err[line:%d]\n", p.lexer.line)
 	}
 }
 
-var instr = NewInst()
-
 // Operand 处理操作数
-func (p *parser) opr(regNum *int, opType *int, opLen *int) {
+func (p *parser) opr() *OperandRecord {
+	opr := &OperandRecord{}
 	token := p.NextToken()
 	switch token {
 	case NUMBER:
-		*opType = OPR_IMMD
-		instr.Imm32 = p.number()
+		opr.Type = OPRTP_IMM
+		opr.Value = int64(p.number())
+		opr.Length = 4 // 代表 4*8
 	case IDENT: // 变量名 立即数
-		*opType = OPR_IMMD
-		lr := ProcessTable.GetLabel(p.id()) // 从 lb_map 中取一条记录，如果没有，新插入一条（外部定义）
-		instr.Imm32 = lr.Addr
-		if ScanLop == 2 {
-			if !lr.IsEqu { // 不是equ
-				// 记录符号
-				RelLb = lr
-			}
-		}
+		opr.Type = OPRTP_IMM
+		opr.RelLabel = ProcessTable.GetLabel(p.id())
 	case LBRACK: // 内存寻址
-		*opType = OPR_MEMR
-		p.lexer.Back(token)
-		p.mem()
+		opr.Type = OPRTP_MEM
+		p.addr(opr)
+		p.require(RBRACK)
 	case SUB: // 负立即数
-		*opType = OPR_IMMD
 		p.require(NUMBER)
-		instr.Imm32 = -p.number()
-	default: // 寄存器操作数 11 rm=des reg=src
-		*opType = OPR_REGS
-		p.lexer.Back(token)
-		*opLen = p.size() // 寄存器宽度，根据 token, 寄存器名字判断
-		if *regNum != 0 { // 双reg，将原来reg写入rm作为目的操作数，本次写入reg
-			instr.modrm.mod = 3                                 // 双寄存器模式
-			instr.modrm.rm = instr.modrm.reg                    // 因为统一采用opcode rm,r 的指令格式，比如mov rm32,r32就使用0x89,若是使用opcode r,rm 形式则不需要
-			instr.modrm.reg = int(token-BR_AL) - (1-*opLen%4)*8 // 计算寄存器的编码
-		} else { // 第一次出现reg，临时在reg中，若双reg这次是目的寄存器，需要交换位置
-			instr.modrm.reg = int(token-BR_AL) - (1-*opLen%4)*8 // 计算寄存器的编码
-		}
-		*regNum++
+		opr.Type = OPRTP_IMM
+		opr.Value = int64(-p.number())
+		opr.Length = 4 // 代表 4*8
+	default: // 寄存器操作数 todo 双寄存器需要特殊处理
+		opr.Type = OPRTP_REG
+		opr.Value = int64(token-BR_AL) % 8 // 这里保持寄存器编号
+	}
+	return opr
+}
+
+func (p *parser) addr(opr *OperandRecord) { // [立即数， 变量， 寄存器] 间接寻址
+	token := p.NextToken()
+	switch token {
+	case NUMBER: // 直接寻址 特例 [00 xxx 101 disp32]
+		opr.Value = int64(p.number())
+		opr.Length = 4
+		opr.ModRm.Mod = 0
+		opr.ModRm.Rm = 0b101
+	case IDENT: // 直接寻址 特例 [变量]
+		opr.ModRm.Mod = 0
+		opr.ModRm.Rm = 0b101
+		opr.RelLabel = ProcessTable.GetLabel(p.id())
+	default: // 寄存器寻址 [eax, edi]
+		p.regaddr(opr, token)
 	}
 }
+
+// todo 偏移寻址会不会出现符号引用？变量？
+func (p *parser) regaddr(opr *OperandRecord, basereg Token) { // 可能存在基于寄存器 + 偏移
+	token := p.NextToken()
+	if token == ADD || token == SUB { // 有变址寄存器
+		p.regaddrtail(opr, basereg, token)
+	} else { // 寄存器间址 00 xxx rrr <esp ebp特殊考虑>
+		if basereg == DR_ESP { //[esp] 特例 需要引导 sib 表示
+			opr.ModRm.Mod = 0
+			opr.ModRm.Rm = 0b100
+			opr.SIB.Scale = 0     // 随便啦
+			opr.SIB.Index = 0b100 //(esp) 代表不存在变址
+			opr.SIB.Base = 0b100  // 代表esp
+		} else if basereg == DR_EBP { //[ebp],特例 改写为 [ebp+0]
+			opr.ModRm.Mod = 1    // 1字节偏移
+			opr.ModRm.Rm = 0b101 //
+			opr.Value = 0
+			opr.Length = 1 // 1位偏移
+		} else { // 一般寄存器
+			opr.ModRm.Mod = 0
+			opr.ModRm.Rm = byte(int(basereg-BR_AL) % 8)
+		}
+		p.lexer.Back(token)
+	}
+}
+
+func (p *parser) regaddrtail(opr *OperandRecord, basereg Token, sign Token) { // 基址 + 偏移[立即数/另外一个寄存器]
+	token := p.NextToken()
+	switch token {
+	case NUMBER: // 寄存器基址 + 偏移 disp8/disp32， mod = 01/10
+		num := p.number()
+		if sign == SUB {
+			num = -num
+		}
+
+		if num >= -128 && num <= 127 { // 8位
+			opr.Length = 1
+			opr.ModRm.Mod = 0b01
+		} else { // 32位偏移
+			opr.Length = 4
+			opr.ModRm.Mod = 0b10
+		}
+		opr.Value = int64(num)
+		opr.ModRm.Rm = byte(int(basereg-BR_AL) % 8)
+
+		if opr.ModRm.Rm == 4 { // 0b100(esp) 引导SIB
+			opr.SIB.Scale = 0     // 随便啦
+			opr.SIB.Index = 0b100 //(esp) 代表不存在变址
+			opr.SIB.Base = 0b100  // 代表esp
+		}
+	default: // 基址变址寻址 [base+index*2^scale+disp],不会发生在esp和ebp上，没有生成这样的指令
+		//typei := p.reg()    // kind和type都是寄存器宽度 1/4
+		//instr.modrm.mod = 0 // 不继续解析 disp 偏移
+		//instr.modrm.rm = 4
+		//instr.sib.scale = 0 // 不继续解析
+		//// （1 - 1%4）*8 = 0， （1-4%4）*8=8
+		//// 计算寄存器编号，16位与32位相差8， 不如直接取余？
+		//instr.sib.index = int(token-BR_AL) % 8  // 后一个，变址
+		//instr.sib.base = int(basereg-BR_AL) % 8 // 第一个，基址
+		//instr.sib.index = int(token-BR_AL) - (1-typei%4)*8
+		//instr.sib.base = int(basereg-BR_AL) - (1-kind%4)*8
+	}
+}
+
+/**
+ * 寻址模式归纳
+ * 000   001   010   011   100        101        110   111
+ * eax   ecx   edx   ebx   esp[sib]   ebp[rip]   esi   edi
+ * mod = 00 寄存器间接寻址          [eax]
+ *       01 寄存器 + 8位偏移        [eax+4]
+ *       10 寄存器 + 32位偏移       [eax+0x123456]
+ * mod = 11 寄存器操作数            eax
+ *
+ * 特例1：mod=00, r/m=101(ebp) 代表直接寻址 [0x12345678], ebp 使用 [ebp+0] 表示
+ *             mov ecx, [0x12345678] // 没有寄存器
+ *             mov eax, [ebp+0] // 替代仅[ebp]表达式
+ * 特例2：mod!=11, r/m=100(esp) 代表 基址（寄存器）+变址（寄存器）+偏移（立即数） 【引导SIB】
+ *             mod=00 代表没有偏移， mod=01代表有8位偏移, mod=10代表有32位偏移
+ *             [base+index*2^scale+disp]
+ *      不存在变址时：index=100(esp) 指令集规定 esp 不能作为变址寄存器！
+ *                 [base+esp*2^scale+disp] 属于不合法指令
+ *      不存在基址时：mod=00,base=101(ebp),且强制包含32位偏移
+ *                 [ebp+index*2^scale] 表达式需要替换为 [ebp+index*2^scale+disp8]?
+ *      [esp+disp] 表达式替换 mod!=11, r/m=100, base=100,index=100(不存在变址),scale=0 => [esp+不存在的变址+disp]
+ *
+ *
+ *
+ *
+ */

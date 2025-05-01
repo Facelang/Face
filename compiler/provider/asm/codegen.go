@@ -86,17 +86,25 @@ func Gen2op(opt Token, desType, srcType, length int) {
 	//(mov,32,reg,reg)=100 (mov,32,reg,mem)=101 (mov,32,mem,reg)=110 (mov,32,reg,imm)=111  [0-7]*(i_lea-i_mov)
 
 	index := -1
-	if srcType == OPR_IMMD { // 鉴别操作数种类
-		index = 3
-	} else {
+	if srcType == OPR_IMMD { // 根据源操作数决定指令编码 鉴别操作数种类
+		index = 3 // 立即数到寄存器，最后一列
+	} else { // 3/2 内存/寄存器, 目的操作数只能为内存或寄存器
+		// desType=3, srcType=2: 2 + 2 -2 = 2（第3列，寄存器到内存）
+		//   不支持内存到寄存器，所以只有一种
+		// dstType=2, srcType=2: 0 + 2 -2 = 0（第1列，寄存器到寄存器）
+		// dstType=2, srcType=3: 0 + 3 -2 = 1（第2列，内存到寄存器）
 		index = (desType-2)*2 + srcType - 2
 	}
 	// 附加指令名称和长度
+	// 获取机器码 一维数组
+	//     int(opt-I_MOV)*8 确定行，
+	//     + (1-length%4)*4 （len=1/4, 结果0/4） 通过寄存器宽度，确定0-3或4-7
+	//     + index 确定第几种操作码类型
 	index = int(opt-I_MOV)*8 + (1-length%4)*4 + index
-	opcode := i2Opcode[index] // 获取机器码
+	opcode := i2Opcode[index]
 
 	switch instr.modrm.mod {
-	case -1: // reg,imm // 初始值
+	case -1: // 立即数操作[到寄存器 | 到内存] index=3 mov=b8
 		switch opt {
 		case I_MOV: // b0+rb MOV r/m8,imm8 b8+rd MOV r/m32,imm32
 			opcode += byte(instr.modrm.reg)
@@ -122,10 +130,10 @@ func Gen2op(opt Token, desType, srcType, length int) {
 			break
 		}
 		// 可能的重定位位置 mov eax,@buffer,也有可能是mov eax,@buffer_len，就不许要重定位，因为是宏
-		ProcessRel(R_386_32)
+		ProcessRel(R_386_32)            // 这里记录一个重定位（如果有）
 		WriteBytes(instr.Imm32, length) // 一定要按照长度输出立即数
 	case 0: // [reg],reg 或 reg,[reg]
-		WriteBytes(int(opcode), 1)
+		WriteBytes(int(opcode), 1) // mod = 0 代表没有偏移
 		WriteModRM()
 		if instr.modrm.rm == 5 { //[disp32]
 			ProcessRel(R_386_32) // 可能是mov eax,[@buffer],后边disp8和disp32不会出现类似情况
@@ -159,7 +167,7 @@ func Gen2op(opt Token, desType, srcType, length int) {
 
 // Gen1op 生成单操作数指令
 func Gen1op(opt Token, oprType, length int) {
-	opcode := int(i1opcode[opt-I_CALL])
+	opcode := int(i1opcode[opt-I_CALL]) // 取指令编码
 	if opt == I_CALL || opt >= I_JMP && opt <= I_JNA {
 		// 统一使用长地址跳转，短跳转不好定位
 		if opt == I_CALL || opt == I_JMP {
@@ -230,11 +238,4 @@ func Gen1op(opt Token, oprType, length int) {
 		WriteBytes(exchar, 1)
 	}
 
-}
-
-func Gen0op(opt Token) {
-	if opt != I_RET {
-		return
-	}
-	WriteBytes(int(i0Opcode[0]), 1)
 }

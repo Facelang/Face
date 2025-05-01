@@ -8,8 +8,8 @@ import "os"
 
 // 操作数类型
 const OPR_IMMD = 1 // 立即数
-const OPR_MEMR = 2 // 内存
-const OPR_REGS = 3 // 寄存器
+const OPR_MEMR = 3 // 内存
+const OPR_REGS = 2 // 寄存器
 
 // WriteBytes 写入字节（按照小端顺序输出不大于4字节长度数据）
 // 按照小端顺序（little endian）输出指定长度数据
