@@ -1,0 +1,30 @@
+{
+    "go.gopath": "D:\\ProgramDev\\Go\\1.20.14\\modpath",
+    "go.goroot": "D:\\ProgramDev\\Go\\1.20.14\\main",
+    "gopls": {
+        "ui.diagnostic.analyses": {
+            "unusedparams": true,
+            "shadow": true
+        },
+        "ui.semanticTokens": true,
+        "importShortcut": "Definition",
+        "directoryFilters": ["-node_modules", "-vendor"],
+        "ui.completion.usePlaceholders": true,
+        "verboseOutput": false
+    },
+    "terminal.integrated.env.windows": {
+        "PATH": "D:\\ProgramDev\\Go\\1.20.14\\main\\bin;${env:PATH}",
+        "GOROOT": "D:\\ProgramDev\\Go\\1.20.14\\main",
+        "GOPATH": "D:\\ProgramDev\\Go\\1.20.14\\modpath",
+        "GOPROXY": "https://goproxy.cn,direct"
+    },
+    "go.useLanguageServer": true,
+    "[go]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "always"
+        }
+    },
+    "window.zoomLevel": 1
+    
+}
