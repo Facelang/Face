@@ -30,10 +30,11 @@ func (r *reader) init(file string, errFunc ErrorFunc) error {
 }
 
 func (r *reader) reset() error {
-	r.b, r.r, r.e = 0, 0, 0
+	r.b, r.r = 0, 0
 	r.col, r.line, r.offset = 0, 0, 0
 
 	r.buf, r.err = os.ReadFile(r.file)
+	r.e = len(r.buf)
 	return r.err
 }
 

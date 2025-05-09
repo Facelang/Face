@@ -4,15 +4,21 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="12788686-5225-496f-835e-53b871cd9b91" name="更改" comment="">
-      <change afterPath="$PROJECT_DIR$/compiler/provider/asm/instr.go" afterDir="false" />
+    <list default="true" id="12788686-5225-496f-835e-53b871cd9b91" name="更改" comment="代码长度计算未完成">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.vscode/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/.vscode/settings.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/provider/asm/codegen.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/codegen.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/provider/asm/common.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/common.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/elf.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/elf.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/error.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/error.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/instr.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/instr.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/lexer.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/lexer.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/provider/asm/parser.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/parser.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/provider/asm/process.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/process.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/program.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/program.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/reader.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/reader.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/provider/asm/semantic.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/semantic.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/objdump/sample_disasm/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/objdump/sample_disasm/go.mod" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -39,25 +45,25 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultGoTemplateProperty&quot;: &quot;Go File&quot;,
-    &quot;Go 构建.go build face-lang.executor&quot;: &quot;Debug&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.modules.automatic.dependencies.download&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/ProgramData/Windows/Desktop/Projects/Go/face-lang&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;go.custom.fmt.functions&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultGoTemplateProperty": "Go File",
+    "Go 构建.go build face-lang.executor": "Debug",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.go.formatter.settings.were.checked": "true",
+    "RunOnceActivity.go.migrated.go.modules.settings": "true",
+    "RunOnceActivity.go.modules.automatic.dependencies.download": "true",
+    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
+    "git-widget-placeholder": "master",
+    "go.import.settings.migrated": "true",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "E:/ProgramData/Windows/Desktop/Projects/Go/face-lang",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "go.custom.fmt.functions"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\Develops\Go\face-lang" />
@@ -78,6 +84,11 @@
       <filePath value="$PROJECT_DIR$/main.go" />
       <method v="2" />
     </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go 构建.go build face-lang" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -90,6 +101,10 @@
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="应用程序级" UseSingleDictionary="true" transferred="true" />
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="代码长度计算未完成" />
+    <option name="LAST_COMMIT_MESSAGE" value="代码长度计算未完成" />
   </component>
   <component name="VgoProject">
     <environment>
@@ -116,6 +131,16 @@
           <url>file://$PROJECT_DIR$/compiler/factory/parser.go</url>
           <line>412</line>
           <option name="timeStamp" value="7" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/compiler/provider/asm/common.go</url>
+          <line>42</line>
+          <option name="timeStamp" value="14" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/compiler/provider/asm/program.go</url>
+          <line>12</line>
+          <option name="timeStamp" value="16" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

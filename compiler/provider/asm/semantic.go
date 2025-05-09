@@ -1,5 +1,9 @@
 package asm
 
+import (
+	"os"
+)
+
 // modrm字段
 type ModRM struct {
 	mod int // 0-1
@@ -61,10 +65,10 @@ func (i *Inst) setDisp(d, dLen int) {
 }
 
 // 按照记录的disp长度输出
-func (i *Inst) writeDisp() {
+func (i *Inst) writeDisp(file *os.File) {
 	if i.DispLen == 0 {
 		return
 	}
-	WriteBytes(i.Disp, i.DispLen)
+	WriteBytes(file, i.Disp, i.DispLen)
 	i.DispLen = 0 // 还原
 }

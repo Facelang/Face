@@ -252,7 +252,7 @@ func (e *ElfFile) getSymIndex(symName string) int {
 
 // sh_name和sh_offset都需要重新计算
 func (e *ElfFile) addShdr(shName string, size uint32) {
-	off := uint32(52 + DataLen)
+	off := uint32(52 + ProcessTable.DataLen)
 	if shName == ".text" {
 		e.addShdrFunc(shName, SHT_PROGBITS, SHF_ALLOC|SHF_EXECINSTR, 0, off, size, 0, 0, 4, 0)
 	} else if shName == ".data" {
@@ -354,14 +354,14 @@ func (e *ElfFile) addRel(seg string, addr int, lb string, t int) {
 
 // WriteElf 写入ELF文件
 func (e *ElfFile) WriteElf(outName string) {
-	_ = Fout.Close()
-	// 打开输出文件
+	//_ = Fout.Close()
+	//// 打开输出文件
 	outFile, err := os.Create(outName)
 	if err != nil {
 		fmt.Printf("无法创建输出文件: %s\n", err)
 		return
 	}
-	Fout = outFile
+	//Fout = outFile
 
 	defer func() {
 		_ = outFile.Close()
@@ -457,7 +457,7 @@ func (e *ElfFile) assembleElfFile() {
 	index += 8
 
 	// 计算所有段的偏移和大小
-	offset := 52 + DataLen // ELF头 + 代码和数据 header+(.text+pad+.data+pad)数据偏移，.shstrtab偏移
+	offset := 52 + ProcessTable.DataLen // ELF头 + 代码和数据 header+(.text+pad+.data+pad)数据偏移，.shstrtab偏移
 
 	// 添加.shstrtab段
 	e.addShdrFunc(".shstrtab", SHT_STRTAB, 0, 0, uint32(offset), uint32(shstrtabSize), SHN_UNDEF, 0, 1, 0)

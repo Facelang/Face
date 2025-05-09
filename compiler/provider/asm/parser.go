@@ -131,13 +131,20 @@ func (p *parser) lbtail(id string) {
 		times := p.number()
 		p.values(id, times, p.size()) // size 代表数据类型 db dd 字符、字、双字
 		return
-		//case A_EQU: // [暂时忽略] equ 常量？伪指令，所有使用到该符号的，全部替换为值，不存在地址。
-		//	p.require(NUMBER)
-		//	ProcessTable.AddLabel(NewRecWithAddr(id, p.number()))
+	case A_EQU: // equ 常量？伪指令，所有使用到该符号的，全部替换为值，不存在地址。
+		// 这里需要被替换为值
+		// 关于 equ 语法说明，equ 支持表达式：可以是数字、地址、其他符号、算术表达式等
+		// equ 定义的符号在汇编时就被替换为具体值，不会占用内存，也不会生成机器码。
+		// 不能对 equ 定义的符号赋新值（它不是变量）。
+		// equ 只能用于常量表达式，不能用于运行时可变的值。
+		// todo 完整的逻辑需要支持 数字，其他符号，表达式， 【最终获得运算后的值】
+		// todo equ 引用其它符号，必须提前申明！
+		p.require(NUMBER) // todo 当前只支持数字
+		ProcessTable.AddLabel(NewRecWithAddr(id, p.number()))
 	case COLON: // 代码段（label）, main: 一般是函数名作为一个单独的记号
 		ProcessTable.AddLabel(NewRec(id, false))
 		return
-	default:
+	default: // 变量支持
 		p.lexer.Back(token)
 		p.values(id, 1, p.size()) // 单个变量定义，直接解析
 	}
@@ -179,13 +186,13 @@ func (p *parser) valType(cont *[]int, contLen *int, size int) {
 			(*cont)[*contLen] = int(ch)
 			*contLen++
 		}
-	//case IDENT: // [暂时忽略] 如果是一个变量， 说明是一个引用，需要添加重定位，
-	//	lb := ProcessTable.GetLabel(p.id())
-	//	(*cont)[*contLen] = lb.Addr
-	//	ObjFile.addRel(
-	//		ProcessTable.CurSegName,
-	//		ProcessTable.CurSegOff+*contLen*size, p.id(), R_386_32)
-	//	*contLen++
+	case IDENT: // 如果是一个变量， 说明是一个引用，需要添加重定位，
+		lb := ProcessTable.GetLabel(p.id())
+		(*cont)[*contLen] = lb.Addr
+		ObjFile.addRel( // 这里一定有地址！， 依赖前一个变量必须提前申明
+			ProcessTable.CurSegName,
+			ProcessTable.CurSegOff+*contLen*size, p.id(), R_386_32)
+		*contLen++
 	default:
 		p.err = fmt.Errorf("[valType](%d,%d): %s, %s，数据类型获取异常！",
 			p.lexer.line, p.lexer.col, token.String(), p.lexer.id)

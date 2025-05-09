@@ -47,8 +47,9 @@ func (l *lexer) NextToken() Token {
 
 	l.reader.start()
 
-	l.col = l.reader.col
-	l.line = l.reader.line
+	// 跳过无效字符，从开始位置读取
+	l.col = l.reader.col       // 最小为1， 非索引
+	l.line = l.reader.line + 1 // 行号，非索引
 	l.offset = l.reader.offset
 
 	if isIndentPrefix(l.reader.ch) {

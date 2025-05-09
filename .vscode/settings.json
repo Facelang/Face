@@ -1,5 +1,5 @@
 {
-    "go.gopath": "D:\\ProgramDev\\Go\\1.20.14\\modpath",
+    "go.gopath": "D:\\ProgramDev\\Go\\1.20.14\\modules",
     "go.goroot": "D:\\ProgramDev\\Go\\1.20.14\\main",
     "gopls": {
         "ui.diagnostic.analyses": {
@@ -15,7 +15,7 @@
     "terminal.integrated.env.windows": {
         "PATH": "D:\\ProgramDev\\Go\\1.20.14\\main\\bin;${env:PATH}",
         "GOROOT": "D:\\ProgramDev\\Go\\1.20.14\\main",
-        "GOPATH": "D:\\ProgramDev\\Go\\1.20.14\\modpath",
+        "GOPATH": "D:\\ProgramDev\\Go\\1.20.14\\modules",
         "GOPROXY": "https://goproxy.cn,direct"
     },
     "go.useLanguageServer": true,
@@ -25,6 +25,8 @@
             "source.organizeImports": "always"
         }
     },
-    "window.zoomLevel": 1
-    
+    "window.zoomLevel": 1,
+    "go.alternateTools": {
+        "gopls": "D:\\ProgramDev\\Go\\1.20.14\\modules\\bin\\gopls.exe"
+    }
 }

@@ -1,19 +1,21 @@
 package asm
 
-import "os"
+import (
+	"bytes"
+	"os"
+)
 
 // LabelRecord 符号记录
 type LabelRecord struct {
-	LbName    string // 标签名
-	Addr      int    // 地址
-	Externed  bool   // 是否为外部符号
-	IsEqu     bool   // 是否为EQU定义的符号
-	EquTarget string // 跳转别名
-	SegName   string // 段名
-	Times     int    // 重复次数
-	Len       int    // 字节长度
-	Cont      []int  // 内容
-	ContLen   int    // 内容长度
+	LbName   string // 标签名
+	Addr     int    // 地址
+	Externed bool   // 是否为外部符号
+	IsEqu    bool   // 是否为EQU定义的符号
+	SegName  string // 段名
+	Times    int    // 重复次数
+	Len      int    // 字节长度
+	Cont     []int  // 内容
+	ContLen  int    // 内容长度
 }
 
 func NewRec(name string, ex bool) *LabelRecord {
@@ -38,17 +40,17 @@ func NewRec(name string, ex bool) *LabelRecord {
 }
 
 // NewRecWithAddr 创建EQU符号记录， 记录为跳转别名
-func NewRecWithAddr(name, target string) *LabelRecord {
+func NewRecWithAddr(name string, value int) *LabelRecord {
 	return &LabelRecord{
-		LbName:    name,
-		SegName:   ProcessTable.CurSegName,
-		EquTarget: target,
-		IsEqu:     true,
-		Externed:  false,
-		Times:     0,
-		Len:       0,
-		Cont:      nil,
-		ContLen:   0,
+		LbName:   name,
+		SegName:  ProcessTable.CurSegName,
+		Addr:     value,
+		IsEqu:    true,
+		Externed: false,
+		Times:    0,
+		Len:      0,
+		Cont:     nil,
+		ContLen:  0,
 	}
 }
 
@@ -76,10 +78,10 @@ func NewRecWithData(name string, times int, length int, cont []int, contLen int)
 }
 
 // Write 写入数据到输出文件
-func (lb *LabelRecord) write() {
+func (lb *LabelRecord) write(file *os.File) {
 	for i := 0; i < lb.Times; i++ {
 		for j := 0; j < lb.ContLen; j++ {
-			WriteBytes(lb.Cont[j], lb.Len)
+			WriteBytes(file, lb.Cont[j], lb.Len)
 		}
 	}
 }
@@ -89,7 +91,7 @@ type TemporaryTable struct {
 	CurSegOff    int                     // 当前段地址偏移
 	CurSegName   string                  // 当前段名称
 	DataLen      int                     // 总数据长度
-	TempFile     *os.File                // 临时文件
+	InstrBuff    *bytes.Buffer           // 二进制缓冲区， 存放指令代码
 	InstrList    []*InstrRecord          // 指令表
 	MapLabel     map[string]*LabelRecord // 符号映射表
 	DefLabelList []*LabelRecord          // 定义的符号列表
@@ -101,6 +103,7 @@ func NewTemporaryTable() *TemporaryTable {
 		CurSegOff:    0,
 		CurSegName:   "",
 		DataLen:      0,
+		InstrBuff:    bytes.NewBuffer(nil),
 		InstrList:    make([]*InstrRecord, 0),
 		MapLabel:     make(map[string]*LabelRecord),
 		DefLabelList: make([]*LabelRecord, 0),
@@ -110,7 +113,7 @@ func NewTemporaryTable() *TemporaryTable {
 // PushInstr 将指令解析后添加到临时列表， 指令生产过程需要处理符号地址引用
 func (t *TemporaryTable) PushInstr(instr *InstrRecord) {
 	t.InstrList = append(t.InstrList, instr)
-	t.CurSegOff += instr.WriteOut()
+	t.CurSegOff += instr.WriteOut(t.InstrBuff) // WriteBytes内部已经会更新ProcessTable.CurSegOff
 }
 
 // Exist 检查符号表中是否有指定名称的符号
@@ -178,10 +181,10 @@ func (t *TemporaryTable) Exports() {
 }
 
 // Write 写入符号数据
-func (t *TemporaryTable) Write() {
-	for _, lb := range t.DefLabelList {
-		lb.write()
-	}
-}
+//func (t *TemporaryTable) Write() {
+//	for _, lb := range t.DefLabelList {
+//		lb.write(t.TempOut)
+//	}
+//}
 
 var ProcessTable = NewTemporaryTable()
