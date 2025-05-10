@@ -70,6 +70,7 @@ func (r *reader) read() bool {
 func (r *reader) start()          { r.b = r.r - 1 }
 func (r *reader) stop()           { r.b = -1 }
 func (r *reader) segment() string { return string(r.buf[r.b : r.r-1]) }
+func (r *reader) string() string  { return string(r.buf[r.b+1 : r.r-2]) }
 
 //func (r *reader) offset(s uint) (rune, uint) {
 //	return GetRune(r.buf[s:], r.errorBy)

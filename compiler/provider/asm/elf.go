@@ -105,28 +105,20 @@ type Elf32_Rel struct {
 	R_info   uint32 // 重定位类型和符号索引
 }
 
-// RelInfo 重定位信息
-type RelInfo struct {
-	TarSeg string // 重定位目标段
-	Offset int    // 重定位位置的偏移
-	LbName string // 重定位符号的名称
-	Type   int    // 重定位类型0-R_386_32；1-R_386_PC32
-}
-
 // ELF文件结构// elf文件类，包含elf文件的重要内容，处理elf文件
 type ElfFile struct {
-	Ehdr         Elf32_Ehdr             // ELF文件头
-	ShdrTab      map[string]*Elf32_Shdr // 段表映射
-	ShdrNames    []string               // 段名列表,  段表名和索引的映射关系，方便符号查询自己的段信息
-	SymTab       map[string]*Elf32_Sym  // 符号表映射
-	SymNames     []string               // 符号名列表, 符号名与符号表项索引的映射关系，对于重定位表生成重要
-	RelTab       []RelInfo              // 重定位信息列表
-	Shstrtab     []byte                 // 段表字符串表数据
-	ShstrtabSize int                    // 段表字符串表长
-	Strtab       []byte                 // 字符串表数据
-	StrtabSize   int                    // 字符串表长
-	RelTextTab   []*Elf32_Rel           // -
-	RelDataTab   []*Elf32_Rel           // -
+	Ehdr      Elf32_Ehdr             // ELF文件头
+	ShdrTab   map[string]*Elf32_Shdr // 段表映射
+	ShdrNames []string               // 段名列表,  段表名和索引的映射关系，方便符号查询自己的段信息
+	SymTab    map[string]*Elf32_Sym  // 符号表映射
+	SymNames  []string               // 符号名列表, 符号名与符号表项索引的映射关系，对于重定位表生成重要
+	//RelTab       []RelInfo              // 重定位信息列表
+	Shstrtab     []byte       // 段表字符串表数据
+	ShstrtabSize int          // 段表字符串表长
+	Strtab       []byte       // 字符串表数据
+	StrtabSize   int          // 字符串表长
+	RelTextTab   []*Elf32_Rel // -
+	RelDataTab   []*Elf32_Rel // -
 }
 
 // ELF文件常量
@@ -172,17 +164,17 @@ const (
 	SHN_UNDEF = 0 // 未定义的符号
 )
 
-func NewRelInfo(seg string, addr int, lb string, t int) *RelInfo {
-	return &RelInfo{Offset: addr, TarSeg: seg, LbName: lb, Type: t}
-}
+//func NewRelInfo(seg string, addr int, lb string, t int) *RelInfo {
+//	return &RelInfo{Offset: addr, TarSeg: seg, LbName: lb, Type: t}
+//}
 
 func NewElfFile() *ElfFile {
 	elf := &ElfFile{
-		ShdrTab:    make(map[string]*Elf32_Shdr),
-		SymTab:     make(map[string]*Elf32_Sym),
-		ShdrNames:  make([]string, 0),
-		SymNames:   make([]string, 0),
-		RelTab:     make([]RelInfo, 0),
+		ShdrTab:   make(map[string]*Elf32_Shdr),
+		SymTab:    make(map[string]*Elf32_Sym),
+		ShdrNames: make([]string, 0),
+		SymNames:  make([]string, 0),
+		//RelTab:     make([]RelInfo, 0),
 		Shstrtab:   make([]byte, 0),
 		Strtab:     make([]byte, 0),
 		RelTextTab: make([]*Elf32_Rel, 0),
@@ -347,10 +339,10 @@ func (e *ElfFile) addSym2(stName string, s *Elf32_Sym) {
 	e.SymNames = append(e.SymNames, stName)
 }
 
-func (e *ElfFile) addRel(seg string, addr int, lb string, t int) {
-	rel := NewRelInfo(seg, addr, lb, t)
-	e.RelTab = append(e.RelTab, *rel)
-}
+//func (e *ElfFile) addRel(seg string, addr int, lb string, t int) {
+//	rel := NewRelInfo(seg, addr, lb, t)
+//	e.RelTab = append(e.RelTab, *rel)
+//}
 
 // WriteElf 写入ELF文件
 func (e *ElfFile) WriteElf(outName string) {
@@ -496,20 +488,20 @@ func (e *ElfFile) assembleElfFile() {
 	// 处理重定位表
 	relTextSize := 0
 	relDataSize := 0
-	for _, rel := range e.RelTab {
-		symIndex := e.getSymIndex(rel.LbName)
-		relData := &Elf32_Rel{
-			R_offset: uint32(rel.Offset),
-			R_info:   uint32(((symIndex) << 8) + ((rel.Type) & 0xff)),
-		}
-		if rel.TarSeg == ".text" {
-			e.RelTextTab = append(e.RelTextTab, relData)
-			relTextSize += 8 // 每个重定位项8字节
-		} else if rel.TarSeg == ".data" {
-			e.RelTextTab = append(e.RelDataTab, relData)
-			relDataSize += 8
-		}
-	}
+	//for _, rel := range e.RelTab {
+	//	symIndex := e.getSymIndex(rel.LbName)
+	//	relData := &Elf32_Rel{
+	//		R_offset: uint32(rel.Offset),
+	//		R_info:   uint32(((symIndex) << 8) + ((rel.Type) & 0xff)),
+	//	}
+	//	if rel.TarSeg == ".text" {
+	//		e.RelTextTab = append(e.RelTextTab, relData)
+	//		relTextSize += 8 // 每个重定位项8字节
+	//	} else if rel.TarSeg == ".data" {
+	//		e.RelTextTab = append(e.RelDataTab, relData)
+	//		relDataSize += 8
+	//	}
+	//}
 
 	//-----添加.rel.text
 	e.addShdrFunc(".rel.text", SHT_REL, 0, 0, uint32(offset), Elf32_Word(relTextSize), Elf32_Word(e.getSegIndex(".symtab")), Elf32_Word(e.getSegIndex(".text")), 1, 8) //.rel.text
@@ -603,24 +595,24 @@ func (e *ElfFile) writeElfTailToFile(outFile *os.File) {
 
 	// 写入重定位表
 	// 先写.rel.text
-	for _, rel := range e.RelTab {
-		if rel.TarSeg == ".text" {
-			symIdx := e.getSymIndex(rel.LbName)
-			info := uint32(symIdx<<8) | uint32(rel.Type)
-			WriteUint32(outFile, uint32(rel.Offset))
-			WriteUint32(outFile, info)
-		}
-	}
-
-	// 再写.rel.data
-	for _, rel := range e.RelTab {
-		if rel.TarSeg == ".data" {
-			symIdx := e.getSymIndex(rel.LbName)
-			info := uint32(symIdx<<8) | uint32(rel.Type)
-			WriteUint32(outFile, uint32(rel.Offset))
-			WriteUint32(outFile, info)
-		}
-	}
+	//for _, rel := range e.RelTab {
+	//	if rel.TarSeg == ".text" {
+	//		symIdx := e.getSymIndex(rel.LbName)
+	//		info := uint32(symIdx<<8) | uint32(rel.Type)
+	//		WriteUint32(outFile, uint32(rel.Offset))
+	//		WriteUint32(outFile, info)
+	//	}
+	//}
+	//
+	//// 再写.rel.data
+	//for _, rel := range e.RelTab {
+	//	if rel.TarSeg == ".data" {
+	//		symIdx := e.getSymIndex(rel.LbName)
+	//		info := uint32(symIdx<<8) | uint32(rel.Type)
+	//		WriteUint32(outFile, uint32(rel.Offset))
+	//		WriteUint32(outFile, info)
+	//	}
+	//}
 }
 
 var ObjFile = NewElfFile()

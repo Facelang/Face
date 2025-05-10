@@ -2,6 +2,7 @@ package asm
 
 import (
 	"bytes"
+	"io"
 	"os"
 )
 
@@ -16,6 +17,15 @@ type LabelRecord struct {
 	Len      int    // 字节长度
 	Cont     []int  // 内容
 	ContLen  int    // 内容长度
+	Index    int    // todo 记录一下添加序号
+}
+
+// RelocateRecord 重定位信息
+type RelocateRecord struct {
+	TarSeg string // 重定位目标段
+	Offset int    // 重定位位置的偏移
+	LbName string // 重定位符号的名称
+	Type   int    // 重定位类型0-R_386_32；1-R_386_PC32
 }
 
 func NewRec(name string, ex bool) *LabelRecord {
@@ -29,6 +39,7 @@ func NewRec(name string, ex bool) *LabelRecord {
 		Len:      0,
 		Cont:     nil,
 		ContLen:  0,
+		Index:    len(ProcessTable.MapLabel), // 记录label 添加序号
 	}
 
 	if ex {
@@ -51,6 +62,7 @@ func NewRecWithAddr(name string, value int) *LabelRecord {
 		Len:      0,
 		Cont:     nil,
 		ContLen:  0,
+		Index:    -1, // todo 默认-1
 	}
 }
 
@@ -65,6 +77,7 @@ func NewRecWithData(name string, times int, length int, cont []int, contLen int)
 		Len:      length,
 		ContLen:  contLen,
 		Externed: false,
+		Index:    -1, // todo 默认-1
 	}
 
 	// 复制内容
@@ -81,20 +94,21 @@ func NewRecWithData(name string, times int, length int, cont []int, contLen int)
 func (lb *LabelRecord) write(file *os.File) {
 	for i := 0; i < lb.Times; i++ {
 		for j := 0; j < lb.ContLen; j++ {
-			WriteBytes(file, lb.Cont[j], lb.Len)
+			//WriteBytes(file, lb.Cont[j], lb.Len)
 		}
 	}
 }
 
 // TemporaryTable 临时表，主要记录解析过程的符号信息
 type TemporaryTable struct {
-	CurSegOff    int                     // 当前段地址偏移
-	CurSegName   string                  // 当前段名称
-	DataLen      int                     // 总数据长度
-	InstrBuff    *bytes.Buffer           // 二进制缓冲区， 存放指令代码
-	InstrList    []*InstrRecord          // 指令表
-	MapLabel     map[string]*LabelRecord // 符号映射表
-	DefLabelList []*LabelRecord          // 定义的符号列表
+	CurSegOff     int                     // 当前段地址偏移
+	CurSegName    string                  // 当前段名称
+	DataLen       int                     // 总数据长度
+	InstrBuff     *bytes.Buffer           // 二进制缓冲区， 存放指令代码
+	InstrList     []*InstrRecord          // 指令表
+	MapLabel      map[string]*LabelRecord // 符号映射表
+	DefLabelList  []*LabelRecord          // 定义的符号列表
+	RelRecordList []*RelocateRecord       // 重定位记录表
 }
 
 // NewTemporaryTable 创建新的符号表
@@ -113,7 +127,7 @@ func NewTemporaryTable() *TemporaryTable {
 // PushInstr 将指令解析后添加到临时列表， 指令生产过程需要处理符号地址引用
 func (t *TemporaryTable) PushInstr(instr *InstrRecord) {
 	t.InstrList = append(t.InstrList, instr)
-	t.CurSegOff += instr.WriteOut(t.InstrBuff) // WriteBytes内部已经会更新ProcessTable.CurSegOff
+	instr.WriteOut(t.InstrBuff, &t.CurSegOff)
 }
 
 // Exist 检查符号表中是否有指定名称的符号
@@ -137,7 +151,7 @@ func (t *TemporaryTable) AddLabel(lb *LabelRecord) {
 	}
 
 	// 包含数据段内容的符号：数据段内除了不含数据（times==0）的符号，外部符号段名为空
-	if lb.Times != 0 && lb.SegName == ".data" {
+	if lb.Times != 0 && lb.SegName == ".data" { // 添加到数据段
 		t.DefLabelList = append(t.DefLabelList, lb)
 	}
 }
@@ -154,9 +168,32 @@ func (t *TemporaryTable) GetLabel(name string) *LabelRecord {
 	return lb
 }
 
+func (t *TemporaryTable) AddRel(lb *LabelRecord, relType int) {
+	t.RelRecordList = append(
+		t.RelRecordList,
+		&RelocateRecord{
+			TarSeg: t.CurSegName, // 重定位目标段
+			Offset: t.CurSegOff,  // 重定位位置的偏移
+			LbName: lb.LbName,    // 重定位符号的名称
+			Type:   relType,      // 重定位类型0-R_386_32；1-R_386_PC32
+		},
+	)
+}
+
+func (t *TemporaryTable) AddRelOff(offset int, lb string, relType int) {
+	t.RelRecordList = append(
+		t.RelRecordList,
+		&RelocateRecord{
+			TarSeg: t.CurSegName,         // 重定位目标段
+			Offset: t.CurSegOff + offset, // 重定位位置的偏移
+			LbName: lb,                   // 重定位符号的名称
+			Type:   relType,              // 重定位类型0-R_386_32；1-R_386_PC32
+		},
+	)
+}
+
 // SwitchSeg 切换段 段名在这里修改 curSeg = id
 func (t *TemporaryTable) SwitchSeg(id string) {
-	//if ScanLop == 1 {
 	// 确保段对齐到4字节边界
 	t.DataLen += (4 - t.DataLen%4) % 4
 
@@ -167,12 +204,20 @@ func (t *TemporaryTable) SwitchSeg(id string) {
 		t.DataLen += ProcessTable.CurSegOff
 	}
 
-	t.CurSegName = id          // 切换到下一个段
-	ProcessTable.CurSegOff = 0 // 清0段偏移
+	t.CurSegName = id // 切换到下一个段
+	t.CurSegOff = 0   // 清0段偏移
 }
 
 // Exports 导出符号表
 func (t *TemporaryTable) Exports() {
+	for _, lb := range t.MapLabel {
+		if !lb.IsEqu { // EQU定义的符号不导出
+			ObjFile.addSym(lb)
+		}
+	}
+}
+
+func (t *TemporaryTable) Write() {
 	for _, lb := range t.MapLabel {
 		if !lb.IsEqu { // EQU定义的符号不导出
 			ObjFile.addSym(lb)
@@ -186,5 +231,22 @@ func (t *TemporaryTable) Exports() {
 //		lb.write(t.TempOut)
 //	}
 //}
+
+func ValueBytes(value, length int) []byte {
+	temp := make([]byte, length)
+	for i := 0; i < length; i++ {
+		temp[i] = byte((value >> (i * 8)) & 0xFF)
+	}
+	return temp
+}
+
+func WriteBytes(w io.Writer, offset *int, value, length int) {
+	*offset += length
+	temp := ValueBytes(value, length)
+	_, err := w.Write(temp)
+	if err != nil {
+		panic(err)
+	}
+}
 
 var ProcessTable = NewTemporaryTable()

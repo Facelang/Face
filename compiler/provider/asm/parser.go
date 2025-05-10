@@ -54,8 +54,7 @@ func (p *parser) number() int {
 	return v
 }
 
-func (p *parser) reg() int { // 返回寄存器宽度
-	token := p.NextToken()
+func (p *parser) reg(token Token) byte { // 返回寄存器宽度
 	if token >= BR_AL && token <= BR_BH { // 8位寄存器
 		return 1
 	}
@@ -114,8 +113,7 @@ func (p *parser) program() (interface{}, error) {
 		p.require(IDENT)
 		break
 	default:
-		p.lexer.Back(token)
-		p.inst() // 进入语法处理
+		p.inst(token) // 进入语法处理
 	}
 	return p.program()
 }
@@ -167,8 +165,8 @@ func (p *parser) size() int {
 }
 
 func (p *parser) values(id string, times, size int) {
-	cont := make([]int, 255)
-	contLen := 0
+	cont := make([]int, 255)         // 数据缓存
+	contLen := 0                     // 这里计算数据占用宽度
 	p.valType(&cont, &contLen, size) // 这里获得的是值， 数字、字符串、引用名
 	p.valTail(&cont, &contLen, size) // 判断逗号 多个值，依次存入 cont 中
 	ProcessTable.AddLabel(NewRecWithData(id, times, size, cont, contLen))
@@ -182,16 +180,14 @@ func (p *parser) valType(cont *[]int, contLen *int, size int) {
 		(*cont)[*contLen] = p.number()
 		*contLen++
 	case STRING:
-		for _, ch := range p.lexer.id {
+		for _, ch := range []byte(p.lexer.id) {
 			(*cont)[*contLen] = int(ch)
 			*contLen++
 		}
 	case IDENT: // 如果是一个变量， 说明是一个引用，需要添加重定位，
 		lb := ProcessTable.GetLabel(p.id())
 		(*cont)[*contLen] = lb.Addr
-		ObjFile.addRel( // 这里一定有地址！， 依赖前一个变量必须提前申明
-			ProcessTable.CurSegName,
-			ProcessTable.CurSegOff+*contLen*size, p.id(), R_386_32)
+		ProcessTable.AddRelOff(*contLen*size, p.id(), R_386_32)
 		*contLen++
 	default:
 		p.err = fmt.Errorf("[valType](%d,%d): %s, %s，数据类型获取异常！",
@@ -212,8 +208,7 @@ func (p *parser) valTail(cont *[]int, contLen *int, size int) {
 }
 
 // inst 处理指令
-func (p *parser) inst() {
-	token := p.NextToken()
+func (p *parser) inst(token Token) {
 	if token >= I_MOV && token <= I_LEA { // i_mov,i_cmp,i_sub,i_add,i_lea,//2p
 		instr := NewInstrRec(token, 2)
 		instr.OprList[0] = p.opr() // 取第一个操作数
@@ -259,8 +254,10 @@ func (p *parser) opr() *OperandRecord {
 		opr.Value = int64(-p.number())
 		opr.Length = 4 // 代表 4*8
 	default: // 寄存器操作数 todo 双寄存器需要特殊处理
+		regLen := p.reg(token)
 		opr.Type = OPRTP_REG
-		opr.Value = int64(token-BR_AL) % 8 // 这里保持寄存器编号
+		opr.Value = int64(token-BR_AL) - int64((1-regLen%4)*8) // 这里保持寄存器编号
+		opr.Length = int(regLen)
 	}
 	return opr
 }
@@ -332,16 +329,12 @@ func (p *parser) regaddrtail(opr *OperandRecord, basereg Token, sign Token) { //
 			opr.SIB.Base = 0b100  // 代表esp
 		}
 	default: // 基址变址寻址 [base+index*2^scale+disp],不会发生在esp和ebp上，没有生成这样的指令
-		//typei := p.reg()    // kind和type都是寄存器宽度 1/4
-		//instr.modrm.mod = 0 // 不继续解析 disp 偏移
-		//instr.modrm.rm = 4
-		//instr.sib.scale = 0 // 不继续解析
-		//// （1 - 1%4）*8 = 0， （1-4%4）*8=8
-		//// 计算寄存器编号，16位与32位相差8， 不如直接取余？
-		//instr.sib.index = int(token-BR_AL) % 8  // 后一个，变址
-		//instr.sib.base = int(basereg-BR_AL) % 8 // 第一个，基址
-		//instr.sib.index = int(token-BR_AL) - (1-typei%4)*8
-		//instr.sib.base = int(basereg-BR_AL) - (1-kind%4)*8
+		regLen := p.reg(token) // kind和type都是寄存器宽度 1/4
+		opr.ModRm.Mod = 0      // 不继续解析 disp 偏移
+		opr.ModRm.Rm = 4       // 0b100
+		opr.SIB.Scale = 0      // 不继续解析
+		opr.SIB.Index = byte(token-BR_AL) - (1-regLen%4)*8
+		opr.SIB.Base = byte(basereg-BR_AL) - (1-regLen%4)*8
 	}
 }
 

@@ -1,7 +1,6 @@
 package asm
 
 import (
-	"io"
 	"os"
 )
 
@@ -31,18 +30,17 @@ const OPR_REGS = 2 // 寄存器
 //	//}
 //}
 
-func WriteBytes(w io.Writer, value, length int) {
-	ProcessTable.CurSegOff += length
-	//if ScanLop == 2 {
-	bytes := make([]byte, length)
-	for i := 0; i < length; i++ {
-		bytes[i] = byte((value >> (i * 8)) & 0xFF)
-	}
-	_, err := w.Write(bytes)
-	if err != nil {
-		panic(err)
-	}
-}
+//func WriteBytes(w io.Writer, value, length int) {
+//	ProcessTable.CurSegOff += length
+//	bytes := make([]byte, length)
+//	for i := 0; i < length; i++ {
+//		bytes[i] = byte((value >> (i * 8)) & 0xFF)
+//	}
+//	_, err := w.Write(bytes)
+//	if err != nil {
+//		panic(err)
+//	}
+//}
 
 // WriteUint16 辅助函数，写入16位无符号整数（小端序）
 func WriteUint16(file *os.File, val uint16) {

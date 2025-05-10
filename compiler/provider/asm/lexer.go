@@ -104,7 +104,7 @@ func (l *lexer) NextToken() Token {
 				next = l.reader.read()
 			}
 			l.reader.read()
-			l.id = l.reader.segment()
+			l.id = l.reader.string()
 			return STRING
 		case '[':
 			l.reader.read()

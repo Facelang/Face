@@ -1,43 +1,43 @@
 section .text
 @str2long:
-	mov edx,@str_2long_data_len
-	mov ecx,@str_2long_data
-	mov ebx, 1
-	mov eax, 4
-	int 128
-	mov ebx, 0
-	mov eax, 1
-	int 128
-	ret
+	mov edx,@str_2long_data_len ; 1,0 BA(186) 1A(26) 00 00 00 常量被替换为值，变量一般需要结合 [data] 使用， 代表地址偏移（本处暂定为地址替换）
+	mov ecx,@str_2long_data ; 2,5 B9(185) 00 00 00 00 重定位表通过【类型】确定重定位宽度 ？0
+	mov ebx, 1 ; 3,10 BB(187) 01(1) 00 00 00
+	mov eax, 4 ; 4,15 B8(184) 04(4) 00 00 00
+	int 128 ; 5,20 CD(205) 80(128)
+	mov ebx, 0 ; 6,22 BB(187) 00 00 00 00
+	mov eax, 1 ; 7,27 B8(184) 01(1) 00 00 00
+	int 128 ; 8,32 CD(205) 80(128)
+	ret ; 9,35 C3(195)
 @procBuf:
-	mov esi,@buffer
-	mov edi,0
-	mov ecx,0
-	mov eax,0
-	mov ebx,10
+	mov esi,@buffer ; 10,35  BE(190) 00 00 00 00 这里需要计算偏移
+	mov edi,0 ; 11,40 BF(191) 00 00 00 00
+	mov ecx,0 ; 12,45 B9(185) 00 00 00 00
+	mov eax,0 ; 13,50 B8(184) 00 00 00 00
+	mov ebx,10 ; 14,55 BB(187) 0A(10) 00 00 00
 @cal_buf_len:
-	mov cl,[esi+edi]
-	cmp ecx,10
-	je @cal_buf_len_exit
-	inc edi
-	imul ebx
-	add eax,ecx
-	sub eax,48
-	jmp @cal_buf_len
+	mov cl,[esi+edi] ; 15,60 8A(138) 0C(12) 37(55) ; ❌ 应该是 138, 12, 62 ; 源码没有实现相关代码
+	cmp ecx,10 ; 16, 83(131) F9(249) 0A(10) ; ❌ 应该是 129, 249, 10, 0, 0, 0,
+	je @cal_buf_len_exit ; 17,68 0F(15) 84(132) ?? ?? ?? ?? ; ❌ 应该是 15, 132, 16, 0, 0, 0
+	inc edi ; 18, FF(255) C7(199) ; ❌ 无法匹配 （71, 247, 235）
+	imul ebx ; 19,76 F7(247) EB(235)
+	add eax,ecx ; 20,78 01(1) C8(200)
+	sub eax,48 ; 21,79 83(131) E8(232) 30(48) ; ❌ 未知正确段 129, 232, 48, 0, 0, 0,
+	jmp @cal_buf_len ; 22,85 E9(233) ?? ?? ?? ?? ; ❌ 应该是 233, 225, 255, 255, 255,
 @cal_buf_len_exit:
-	mov ecx,edi
-	mov [@buffer_len],cl
-	mov bl,[esi]
-	ret
+	mov ecx,edi ; 23,90 89(137) F9(249)
+	mov [@buffer_len],cl ; 24,92 88(136) 0D(13) xx xx xx xx ; ❌ 应该是 136, 13, 25, 1, 0, 0,
+	mov bl,[esi] ; 25,98 8A(138) 1E(30) ; ❌ 应该是 138,30
+	ret ; 26,100 C3(195)
 global _start
 _start:
-	call main
-	mov ebx, 0
-	mov eax, 1
-	int 128
+	call main ; 27,101 E8(232) ?? ?? ?? ??
+	mov ebx, 0 ; 28,106 BB(187) 00 00 00 00
+	mov eax, 1 ; 29,111 B8(184) 01(1) 00 00 00
+	int 128 ; 30,116 CD(205) 80(128)
 section .data
 	@str_2long_data db "字符串长度溢出！",10,13 ; 双字，带换行符
-	@str_2long_data_len equ 26 ; 常量，26
+	@str_2long_data_len equ 26 ; 常量，26, 应该不算偏移
 	@buffer times 255 db 0 ; 缓冲区 重复 255 个双字，共计 510 字节
 	@buffer_len db 0 ; 缓冲区长度 默认 0
 	@s_esp dd @s_base

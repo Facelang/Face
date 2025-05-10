@@ -69,6 +69,6 @@ func (i *Inst) writeDisp(file *os.File) {
 	if i.DispLen == 0 {
 		return
 	}
-	WriteBytes(file, i.Disp, i.DispLen)
+	//WriteBytes(file, i.Disp, i.DispLen)
 	i.DispLen = 0 // 还原
 }
