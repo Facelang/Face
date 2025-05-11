@@ -82,7 +82,7 @@ func (i *InstrRecord) WriteOut(w io.Writer, offset *int) int {
 
 	// 如果有前缀，则写入前缀
 	if i.Prefix != 0 {
-		WriteBytes(w, offset, int(i.Prefix), 1)
+		WriteValue(w, offset, int(i.Prefix), 1)
 		byteCount++
 	}
 
@@ -111,12 +111,12 @@ func ProcessRel(lb *LabelRecord, relType int) bool {
 
 // GenXop 扩展操作数有关指令生成， 需要根据内存寻址操作
 func GenXop(opcode byte, opr *OperandRecord, w io.Writer, offset *int) int {
-	WriteBytes(w, offset, int(opcode), 1) // mod = 0 代表没有偏移
+	WriteValue(w, offset, int(opcode), 1) // mod = 0 代表没有偏移
 	WriteModRM(w, opr.ModRm, offset)
 	if opr.ModRm.Mod == 0 {
 		if opr.ModRm.Rm == 5 { //[disp32]
 			ProcessRel(opr.RelLabel, R_386_32) // 可能是mov eax,[@buffer],后边disp8和disp32不会出现类似情况
-			WriteBytes(w, offset, 0, 4)
+			WriteValue(w, offset, 0, 4)
 			return 6
 		} else if opr.ModRm.Rm == 4 { // SIB
 			WriteSIB(w, opr.SIB, offset)
@@ -125,7 +125,7 @@ func GenXop(opcode byte, opr *OperandRecord, w io.Writer, offset *int) int {
 	} else if opr.ModRm.Rm == 4 {
 		WriteSIB(w, opr.SIB, offset)
 		if opr.Length > 0 {
-			WriteBytes(w, offset, int(opr.Value), opr.Length)
+			WriteValue(w, offset, int(opr.Value), opr.Length)
 			return 3 + opr.Length
 		}
 	}
@@ -133,7 +133,7 @@ func GenXop(opcode byte, opr *OperandRecord, w io.Writer, offset *int) int {
 	if opr.Length == 0 {
 		return 2
 	}
-	WriteBytes(w, offset, int(opr.Value), opr.Length)
+	WriteValue(w, offset, int(opr.Value), opr.Length)
 	return 2 + opr.Length
 }
 
@@ -169,16 +169,16 @@ func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int) int {
 		dest.ModRm.RegOp = byte(src.Value) // 第二个操作数 源操作数（reg 一般保存第一个操作数？？？）
 		// mov 0x89 10001001 d=0 reg 是源 | w=1 32位？
 
-		WriteBytes(w, offset, int(opcode), 1)
+		WriteValue(w, offset, int(opcode), 1)
 		WriteModRM(w, dest.ModRm, offset)
 		return 2
 	} else if src.Type == OPRTP_IMM && dest.Type == OPRTP_REG { // 1011w reg (0xB8+寄存器) 立即数到寄存器
 		// 立即数到内存 或 立即数到寄存器， 使用 [操作码+寄存器编号 32位立即数] 表示
-		opc, length := GetOpcodeForReg(op, opcode, dest.Value) // todo cmp 指令不正确
+		opc, length := GetOpcodeForReg(op, opcode, byte(dest.Value)) // todo cmp 指令不正确
 		WriteBytes(w, offset, opc, length)
 		// 可能的重定位位置 mov eax,@buffer,也有可能是mov eax,@buffer_len，就不许要重定位，因为是宏
 		ProcessRel(src.RelLabel, R_386_32)       // 这里记录一个重定位（如果有）
-		WriteBytes(w, offset, int(src.Value), 4) // todo 长度为寄存器宽度 一定要按照长度输出立即数
+		WriteValue(w, offset, int(src.Value), 4) // todo 长度为寄存器宽度 一定要按照长度输出立即数
 		return length + 4
 	} else if src.Type == OPRTP_IMM && dest.Type == OPRTP_REG { // 立即数到内存
 		// todo 暂时没有实现
@@ -236,11 +236,11 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 	if op == I_CALL || (op >= I_JMP && op <= I_JNA) {
 		// 跳转或调用指令
 		if op == I_CALL || op == I_JMP {
-			WriteBytes(w, offset, opcode, 1)
+			WriteValue(w, offset, opcode, 1)
 			byteCount += 1
 		} else {
-			WriteBytes(w, offset, opcode>>8, 1)
-			WriteBytes(w, offset, opcode, 1)
+			WriteValue(w, offset, opcode>>8, 1)
+			WriteValue(w, offset, opcode, 1)
 			byteCount += 2
 		}
 		// 需要计算一下地址
@@ -248,41 +248,41 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 		if ProcessRel(opr.RelLabel, R_386_PC32) {
 			relAddr = -4
 		}
-		WriteBytes(w, offset, relAddr, 4)
+		WriteValue(w, offset, relAddr, 4)
 		byteCount += 4
 	} else if op == I_INT { // int 只能8位?
-		WriteBytes(w, offset, opcode, 1)
-		WriteBytes(w, offset, int(opr.Value), 1)
+		WriteValue(w, offset, opcode, 1)
+		WriteValue(w, offset, int(opr.Value), 1)
 		byteCount += 2
 	} else if op == I_PUSH { // push eax, 将寄存器或者立即数压入栈中， 可以操作立即数，寄存器，内存
 		if opr.Type == OPR_IMMD { // 立即数, 操作数+立即数，占4位
 			opcode = 0x68
-			WriteBytes(w, offset, opcode, 1)
-			WriteBytes(w, offset, int(opr.Value), 4)
+			WriteValue(w, offset, opcode, 1)
+			WriteValue(w, offset, int(opr.Value), 4)
 			byteCount += 5
 		} else { // 寄存器操作数, 只占一位
 			opcode += int(opr.ModRm.RegOp)
-			WriteBytes(w, offset, opcode, 1)
+			WriteValue(w, offset, opcode, 1)
 			byteCount++
 		}
 	} else if op == I_POP { // pop 指令， 从栈弹出 到指定寄存器
 		opcode += int(opr.ModRm.RegOp)
-		WriteBytes(w, offset, opcode, 1)
+		WriteValue(w, offset, opcode, 1)
 		byteCount++
 	} else if op == I_INC || op == I_DEC { // inc 和 dec 不能操作立即数
 		if opr.Length == 1 { // 为什么需要判断长度？
 			opcode = 0xfe
-			WriteBytes(w, offset, opcode, 1)
+			WriteValue(w, offset, opcode, 1)
 			exchar := 0xc0
 			if op == I_DEC {
 				exchar = 0xc8
 			}
 			exchar += int(opr.ModRm.RegOp)
-			WriteBytes(w, offset, exchar, 1)
+			WriteValue(w, offset, exchar, 1)
 			byteCount += 2
 		} else {
 			opcode += int(opr.ModRm.RegOp)
-			WriteBytes(w, offset, opcode, 1)
+			WriteValue(w, offset, opcode, 1)
 			byteCount++
 		}
 	} else if op == I_NEG { // 取负号 0-x
@@ -291,17 +291,17 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 		}
 		exchar := 0xd8
 		exchar += int(opr.ModRm.RegOp)
-		WriteBytes(w, offset, opcode, 1)
-		WriteBytes(w, offset, exchar, 1)
+		WriteValue(w, offset, opcode, 1)
+		WriteValue(w, offset, exchar, 1)
 		byteCount += 2
 	} else if op == I_IDIV || op == I_IMUL {
-		WriteBytes(w, offset, opcode, 1)
+		WriteValue(w, offset, opcode, 1)
 		exchar := 0xf8
 		if op == I_IMUL {
 			exchar = 0xe8
 		}
 		exchar += int(opr.ModRm.RegOp)
-		WriteBytes(w, offset, exchar, 1)
+		WriteValue(w, offset, exchar, 1)
 		byteCount += 1
 	}
 	return byteCount
@@ -311,20 +311,20 @@ func Gen0op(opt Token, w io.Writer, offset *int) int {
 	if opt != I_RET {
 		return 0
 	}
-	WriteBytes(w, offset, int(i0Opcode[0]), 1)
+	WriteValue(w, offset, int(i0Opcode[0]), 1)
 	return 1
 }
 
-func GetOpcodeForReg(op Token, opcode byte, reg int64) (int, int) {
+func GetOpcodeForReg(op Token, opcode, reg byte) ([]byte, int) {
 	switch op {
 	case I_MOV: // b0+rb MOV r/m8,imm8 b8+rd MOV r/m32,imm32
-		return int(opcode) + int(reg), 1
+		return []byte{opcode + reg}, 1
 	case I_CMP: // 80 /7 ib CMP r/m8,imm8 81 /7 id CMP r/m32,imm32
-		return int(opcode)<<8&0xf8 + int(reg), 2
+		return []byte{opcode, 0xf8 + reg}, 2
 	case I_ADD: // 80 /0 ib ADD r/m8, imm8 81 /0 id ADD r/m32, imm32
-		return int(opcode)<<8&0xc0 + int(reg), 2
+		return []byte{opcode, 0xc0 + reg}, 2
 	case I_SUB: // 80 /5 ib SUB r/m8, imm8 81 /5 id SUB r/m32, imm32
-		return int(opcode)<<8&0xe8 + int(reg), 2
+		return []byte{opcode, 0xe8 + reg}, 2
 	default:
 		panic("unhandled default case")
 	}
@@ -333,11 +333,11 @@ func GetOpcodeForReg(op Token, opcode byte, reg int64) (int, int) {
 // WriteModRM 输出ModRM字节
 func WriteModRM(w io.Writer, o OperandModRm, offset *int) {
 	mrm := ((o.Mod & 0x00000003) << 6) + ((o.RegOp & 0x0000007) << 3) + (o.Rm & 0x00000007)
-	WriteBytes(w, offset, int(mrm), 1)
+	WriteValue(w, offset, int(mrm), 1)
 }
 
 // WriteSIB 输出SIB字节
 func WriteSIB(w io.Writer, o OperandSIB, offset *int) {
 	s := ((o.Scale & 0x00000003) << 6) + ((o.Index & 0x0000007) << 3) + (o.Base & 0x00000007)
-	WriteBytes(w, offset, int(s), 1)
+	WriteValue(w, offset, int(s), 1)
 }

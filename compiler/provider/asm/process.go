@@ -240,13 +240,17 @@ func ValueBytes(value, length int) []byte {
 	return temp
 }
 
-func WriteBytes(w io.Writer, offset *int, value, length int) {
+func WriteBytes(w io.Writer, offset *int, value []byte, length int) {
 	*offset += length
-	temp := ValueBytes(value, length)
-	_, err := w.Write(temp)
+	_, err := w.Write(value)
 	if err != nil {
 		panic(err)
 	}
+}
+
+func WriteValue(w io.Writer, offset *int, value, length int) {
+	temp := ValueBytes(value, length)
+	WriteBytes(w, offset, temp, length)
 }
 
 var ProcessTable = NewTemporaryTable()

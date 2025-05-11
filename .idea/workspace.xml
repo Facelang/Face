@@ -5,22 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8eca8ccc-442b-49c1-9bbd-e0d902f9edd6" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/face-lang.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/face-lang.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/common.txt" beforeDir="false" afterPath="$PROJECT_DIR$/common.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/common.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/common.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/elf.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/elf.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/provider/asm/instr.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/instr.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/lexer.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/lexer.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/parser.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/parser.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/provider/asm/process.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/process.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/program.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/program.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/reader.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/reader.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/provider/asm/semantic.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/provider/asm/semantic.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/ass/common.s" beforeDir="false" afterPath="$PROJECT_DIR$/example/ass/common.s" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,33 +18,33 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 4
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 4
+}</component>
   <component name="ProjectId" id="2wsyeAGhHWR9wowhziRAJ15G5Kh" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Go 构建.go build face-lang.executor": "Debug",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.automatic.dependencies.download": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "master",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "C:/Users/Administrator",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "go.vgo"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Go 构建.go build face-lang.executor&quot;: &quot;Debug&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.automatic.dependencies.download&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Administrator&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;go.vgo&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="go build face-lang" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="face-lang" />
@@ -100,14 +87,14 @@
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/compiler/provider/asm/program.go</url>
           <line>25</line>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/provider/asm/instr.go</url>
-          <line>176</line>
-          <option name="timeStamp" value="15" />
+          <option name="timeStamp" value="19" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
+    <watches-manager>
+      <configuration name="GoApplicationRunConfiguration">
+        <watch expression="*(*&quot;uint8&quot;)(1374390837377)" />
+      </configuration>
+    </watches-manager>
   </component>
 </project>
