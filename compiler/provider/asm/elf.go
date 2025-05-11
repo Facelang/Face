@@ -302,9 +302,9 @@ func (e *ElfFile) addSym(lb *LabelRecord) {
 	}
 	sym := &Elf32_Sym{}
 	sym.St_name = 0
-	sym.St_value = uint32(lb.Addr)                       //符号段偏移,外部符号地址为0
-	sym.St_size = uint32(lb.Times * lb.Len * lb.ContLen) //函数无法通过目前的设计确定，而且不必关心
-	if glb {                                             //统一记作无类型符号，和链接器lit协议保持一致
+	sym.St_value = uint32(lb.Addr)                        //符号段偏移,外部符号地址为0
+	sym.St_size = uint32(lb.Times * lb.Size * lb.ContLen) //函数无法通过目前的设计确定，而且不必关心
+	if glb {                                              //统一记作无类型符号，和链接器lit协议保持一致
 		sym.St_info = ((STB_GLOBAL) << 4) + ((STT_NOTYPE) & 0xf) //全局符号
 	} else {
 		sym.St_info = ((STB_LOCAL) << 4) + ((STT_NOTYPE) & 0xf) //局部符号，避免名字冲突
@@ -359,31 +359,35 @@ func (e *ElfFile) WriteElf(outName string) {
 		_ = outFile.Close()
 	}()
 
-	// 组装ELF文件
+	text := make([]byte, ProcessTable.InstrBuff.Len())
+	copy(text, ProcessTable.InstrBuff.Bytes())
+	for i, rel := range ProcessTable.RelRecordList {
+		lb := ProcessTable.GetLabel(rel.LbName)
+		if rel.TarSeg != ".text" || lb.Externed { // 没有找到内部变量
+			continue
+		}
+		relAddr := lb.Addr
+		if rel.Type == R_386_PC32 { // 相对重定位
+			relAddr -= rel.Offset + 4 // lb.addr 符号位地址, rel 当前地址
+		}
+		// 修改指定位置的数据
+		copy(text[rel.Offset:rel.Offset+4], ValueBytes(relAddr, 4))
+		ProcessTable.RelRecordList[i] = nil // 移除重定位表
+	}
+
+	// 组装ELF文件 末尾输出
 	e.assembleElfFile()
 
 	// 写入ELF头
 	e.writeElfHeaderToFile(outFile)
 
-	//输出.text
-	//fclose(fin);
-	//fin=fopen((fName+".t").c_str(),"r");//临时输出文件，供代码段使用
-	//char buffer[1024]={0};
-	//int f=-1;
-	//while(f!=0)
-	//{
-	//	f=fread(buffer,1,1024,fin);
-	//	fwrite(buffer,1,f,fout);
-	//}
-
 	// 写入.text段
-	e.writeTextSectionToFile(outFile, outName)
-
+	_, _ = outFile.Write(text)
 	// 填充.text和.data段之间的空隙
 	e.PadSeg(outFile, ".text", ".data")
 
 	// 写入.data段，在main.go中调用semantic.Table.Write()
-
+	ProcessTable.WriteData(outFile) //.data
 	// 填充.data和.bss段之间的空隙
 	e.PadSeg(outFile, ".data", ".bss")
 
@@ -410,16 +414,15 @@ func (e *ElfFile) assembleElfFile() {
 	//".rel.text".length()+".rel.data".length()+".bss".length()
 	//".shstrtab".length()+".symtab".length()+".strtab".length()+5;//段表字符串表大小
 	shstrtabSize := 51 // 所有段名的总长度，包括结束符
-	e.Shstrtab = make([]byte, shstrtabSize)
 
-	// 填充段表字符串表
-	shstrIndex := make(map[string]int)
+	e.Shstrtab = make([]byte, shstrtabSize) // 所有段名
+	shstrIndex := make(map[string]int)      // 段名所在位置索引
 	index := 0
 
 	// .rel.text
 	shstrIndex[".rel.text"] = index
 	copy(e.Shstrtab[index:], ".rel.text\x00")
-	shstrIndex[".text"] = index + 4
+	shstrIndex[".text"] = index + 4 // 一个字符串，两处使用，节省空间
 	index += 10
 
 	// .rel.data
@@ -456,12 +459,12 @@ func (e *ElfFile) assembleElfFile() {
 	offset += shstrtabSize
 	e.Ehdr.E_shoff = uint32(offset) // 设置段表偏移
 
-	//-----添加符号表
+	//-----添加符号表 【符号表信息在 exports 导入】
 	offset += 9 * 40 // 9个段表项，每个40字节（8个段+空段，段表字符串表偏移，符号表表偏移）
 	// .symtab,sh_link 代表.strtab索引，默认在.symtab之后,sh_info不能确定
 	symtabSize := (len(e.SymNames)) * 16 // 每个符号16字节
 	e.addShdrFunc(".symtab", SHT_SYMTAB, 0, 0, uint32(offset), uint32(symtabSize), 7, 1, 4, 16)
-	e.ShdrTab[".symtab"].Sh_link = uint32(e.getSegIndex(".symtab") + 1) //.strtab默认在.symtab之后
+	e.ShdrTab[".symtab"].Sh_link = uint32(e.getSegIndex(".symtab") + 1) //.strtab默认在.symtab之后(当前索引+1)
 	offset += symtabSize                                                //.strtab偏移
 	//-----添加.strtab
 	e.StrtabSize = 0                       //字符串表大小
@@ -469,7 +472,7 @@ func (e *ElfFile) assembleElfFile() {
 		e.StrtabSize += len(e.SymNames[i]) + 1
 	}
 
-	//填充strtab数据
+	//填充strtab数据（添加符号，先记录符号名字）
 	e.addShdrFunc(".strtab", SHT_STRTAB, 0, 0, uint32(offset), uint32(e.StrtabSize), SHN_UNDEF, 0, 1, 0) //.strtab
 	e.Strtab = make([]byte, e.StrtabSize)
 	offset += e.StrtabSize
@@ -478,30 +481,32 @@ func (e *ElfFile) assembleElfFile() {
 	// 填充字符串表
 	strtabIndex := 1 // 索引1开始
 	for _, name := range e.SymNames {
-		e.SymTab[name].St_name = uint32(strtabIndex)
+		e.SymTab[name].St_name = uint32(strtabIndex) // 将符号名对应索引记录到符号表
 		copy(e.Strtab[strtabIndex:], name+"\x00")
 		strtabIndex += len(name) + 1
 	}
 
-	// 添加字符串表段
-
-	// 处理重定位表
+	// 处理重定位表， 已经内部处理过的定位信息，直接忽略，只记录未处理的重定位信息，需要添加到重定位表
 	relTextSize := 0
 	relDataSize := 0
-	//for _, rel := range e.RelTab {
-	//	symIndex := e.getSymIndex(rel.LbName)
-	//	relData := &Elf32_Rel{
-	//		R_offset: uint32(rel.Offset),
-	//		R_info:   uint32(((symIndex) << 8) + ((rel.Type) & 0xff)),
-	//	}
-	//	if rel.TarSeg == ".text" {
-	//		e.RelTextTab = append(e.RelTextTab, relData)
-	//		relTextSize += 8 // 每个重定位项8字节
-	//	} else if rel.TarSeg == ".data" {
-	//		e.RelTextTab = append(e.RelDataTab, relData)
-	//		relDataSize += 8
-	//	}
-	//}
+	for _, rel := range ProcessTable.RelRecordList {
+		if rel == nil { // 可能出现空值
+			continue
+		}
+
+		symIndex := e.getSymIndex(rel.LbName)
+		relData := &Elf32_Rel{
+			R_offset: uint32(rel.Offset),
+			R_info:   uint32(((symIndex) << 8) + ((rel.Type) & 0xff)),
+		}
+		if rel.TarSeg == ".text" {
+			e.RelTextTab = append(e.RelTextTab, relData)
+			relTextSize += 8 // 每个重定位项8字节
+		} else if rel.TarSeg == ".data" {
+			e.RelTextTab = append(e.RelDataTab, relData)
+			relDataSize += 8
+		}
+	}
 
 	//-----添加.rel.text
 	e.addShdrFunc(".rel.text", SHT_REL, 0, 0, uint32(offset), Elf32_Word(relTextSize), Elf32_Word(e.getSegIndex(".symtab")), Elf32_Word(e.getSegIndex(".text")), 1, 8) //.rel.text
@@ -536,28 +541,6 @@ func (e *ElfFile) writeElfHeaderToFile(outFile *os.File) {
 	WriteUint16(outFile, e.Ehdr.E_shentsize)
 	WriteUint16(outFile, e.Ehdr.E_shnum)
 	WriteUint16(outFile, e.Ehdr.E_shstrndx)
-}
-
-// writeTextSectionToFile 写入.text段
-func (e *ElfFile) writeTextSectionToFile(outFile *os.File, finName string) {
-	// 打开临时文件
-	tempName := finName[:strings.LastIndex(finName, ".")] + ".t"
-	tempFile, err := os.Open(tempName)
-	if err != nil {
-		fmt.Printf("无法打开临时文件: %s\n", err)
-		return
-	}
-	defer tempFile.Close()
-
-	// 复制临时文件内容到输出文件
-	buffer := make([]byte, 1024)
-	for {
-		n, err := tempFile.Read(buffer)
-		if err != nil || n == 0 {
-			break
-		}
-		_, _ = outFile.Write(buffer[:n])
-	}
 }
 
 // writeElfTailToFile 写入ELF文件尾部

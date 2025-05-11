@@ -187,11 +187,11 @@ func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int) int {
 		src.ModRm.RegOp = byte(dest.Value)
 		return GenXop(opcode, src, w, offset)
 	} else if dest.Type == OPRTP_MEM { // 寄存器到内存
-		if dest.RelLabel != nil {
-			if dest.RelLabel.LbName == "@buffer_len" {
-				println(dest.RelLabel)
-			}
-		}
+		//if dest.RelLabel != nil {
+		//	if dest.RelLabel.LbName == "@buffer_len" {
+		//		println(dest.RelLabel)
+		//	}
+		//}
 		dest.ModRm.RegOp = byte(src.Value)
 		return GenXop(opcode, dest, w, offset)
 	} else {
@@ -248,7 +248,7 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 			WriteValue(w, offset, opcode, 1)
 			byteCount += 2
 		}
-		// 需要计算一下地址
+		// 需要计算一下地址, todo 这里目前实际没用到
 		relAddr := int(opr.Value) - (ProcessTable.CurSegOff + 4)
 		if ProcessRel(opr.RelLabel, R_386_PC32) {
 			relAddr = -4

@@ -14,7 +14,7 @@ type LabelRecord struct {
 	IsEqu    bool   // 是否为EQU定义的符号
 	SegName  string // 段名
 	Times    int    // 重复次数
-	Len      int    // 字节长度
+	Size     int    // 字节长度
 	Cont     []int  // 内容
 	ContLen  int    // 内容长度
 	Index    int    // todo 记录一下添加序号
@@ -36,7 +36,7 @@ func NewRec(name string, ex bool) *LabelRecord {
 		IsEqu:    false,
 		SegName:  ProcessTable.CurSegName,
 		Times:    0,
-		Len:      0,
+		Size:     0,
 		Cont:     nil,
 		ContLen:  0,
 		Index:    len(ProcessTable.MapLabel), // 记录label 添加序号
@@ -50,7 +50,7 @@ func NewRec(name string, ex bool) *LabelRecord {
 	return lb
 }
 
-// NewRecWithAddr 创建EQU符号记录， 记录为跳转别名
+// NewRecWithAddr 创建EQU符号记录， 记录为跳转别名, 不刷新地址
 func NewRecWithAddr(name string, value int) *LabelRecord {
 	return &LabelRecord{
 		LbName:   name,
@@ -59,22 +59,22 @@ func NewRecWithAddr(name string, value int) *LabelRecord {
 		IsEqu:    true,
 		Externed: false,
 		Times:    0,
-		Len:      0,
+		Size:     0,
 		Cont:     nil,
 		ContLen:  0,
 		Index:    -1, // todo 默认-1
 	}
 }
 
-// NewRecWithData 添加符号时，没有地址 Addr 默认为
-func NewRecWithData(name string, times int, length int, cont []int, contLen int) *LabelRecord {
+// NewRecWithData 【本地数据】添加符号时，没有地址 Addr 默认为； 添加时，记录当前位置，更新偏移位置
+func NewRecWithData(name string, times, size int, cont []int, contLen int) *LabelRecord {
 	lb := &LabelRecord{
 		LbName:   name,
 		Addr:     ProcessTable.CurSegOff,
 		SegName:  ProcessTable.CurSegName,
 		IsEqu:    false,
 		Times:    times,
-		Len:      length,
+		Size:     size,
 		ContLen:  contLen,
 		Externed: false,
 		Index:    -1, // todo 默认-1
@@ -85,16 +85,17 @@ func NewRecWithData(name string, times int, length int, cont []int, contLen int)
 	copy(lb.Cont, cont)
 
 	// 更新地址
-	ProcessTable.CurSegOff += times * length * contLen
+	ProcessTable.CurSegOff += times * size * contLen
 
 	return lb
 }
 
 // Write 写入数据到输出文件
 func (lb *LabelRecord) write(file *os.File) {
+	offset := 0
 	for i := 0; i < lb.Times; i++ {
 		for j := 0; j < lb.ContLen; j++ {
-			//WriteBytes(file, lb.Cont[j], lb.Len)
+			WriteValue(file, &offset, lb.Cont[j], lb.Size)
 		}
 	}
 }
@@ -208,8 +209,8 @@ func (t *TemporaryTable) SwitchSeg(id string) {
 	t.CurSegOff = 0   // 清0段偏移
 }
 
-// Exports 导出符号表
-func (t *TemporaryTable) Exports() {
+// ExportLb 导出符号表
+func (t *TemporaryTable) ExportLb() {
 	for _, lb := range t.MapLabel {
 		if !lb.IsEqu { // EQU定义的符号不导出
 			ObjFile.addSym(lb)
@@ -217,20 +218,11 @@ func (t *TemporaryTable) Exports() {
 	}
 }
 
-func (t *TemporaryTable) Write() {
-	for _, lb := range t.MapLabel {
-		if !lb.IsEqu { // EQU定义的符号不导出
-			ObjFile.addSym(lb)
-		}
+func (t *TemporaryTable) WriteData(file *os.File) {
+	for _, lb := range t.DefLabelList {
+		lb.write(file)
 	}
 }
-
-// Write 写入符号数据
-//func (t *TemporaryTable) Write() {
-//	for _, lb := range t.DefLabelList {
-//		lb.write(t.TempOut)
-//	}
-//}
 
 func ValueBytes(value, length int) []byte {
 	temp := make([]byte, length)

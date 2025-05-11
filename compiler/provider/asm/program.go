@@ -10,21 +10,9 @@ func Program(f string) error {
 	//return nil
 	fp := NewFileParser(f)
 	_, err := fp.Parse()
-
-	textBuff := make([]byte, ProcessTable.InstrBuff.Len())
-	copy(textBuff, ProcessTable.InstrBuff.Bytes())
-	relFinish := map[int]struct{}{}
-	for i, rel := range ProcessTable.RelRecordList {
-		lb := ProcessTable.GetLabel(rel.LbName)
-		if rel.TarSeg != ".text" || lb.Externed { // 没有找到内部变量
-			continue
-		}
-		// 修改指定位置的数据
-		copy(textBuff[rel.Offset:rel.Offset+4], ValueBytes(lb.Addr, 4))
-		relFinish[i] = struct{}{}
-	}
 	println("完成解析！")
-	//ObjFile.WriteElf(f + ".o")
+	ObjFile.WriteElf(f + ".o")
+	println("文件导出OK！")
 
 	return err
 }

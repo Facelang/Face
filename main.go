@@ -10,6 +10,6 @@ func main() {
 	//for _, b := range buf {
 	//	fmt.Printf("%d, ", b)
 	//}
-	_ = asm.Program("example/ass/common.s")
+	_ = asm.Program("example/ass/hello.s")
 	println("完成编译！")
 }

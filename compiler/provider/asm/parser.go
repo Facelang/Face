@@ -98,7 +98,7 @@ func (p *parser) program() (interface{}, error) {
 	token := p.NextToken()
 	if token == EOF {
 		ProcessTable.SwitchSeg(p.id())
-		ProcessTable.Exports()
+		ProcessTable.ExportLb()
 		return nil, nil
 	}
 
