@@ -187,7 +187,12 @@ func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int) int {
 		src.ModRm.RegOp = byte(dest.Value)
 		return GenXop(opcode, src, w, offset)
 	} else if dest.Type == OPRTP_MEM { // 寄存器到内存
-		dest.ModRm.RegOp = byte(dest.Value)
+		if dest.RelLabel != nil {
+			if dest.RelLabel.LbName == "@buffer_len" {
+				println(dest.RelLabel)
+			}
+		}
+		dest.ModRm.RegOp = byte(src.Value)
 		return GenXop(opcode, dest, w, offset)
 	} else {
 		panic("语法格式错误！")
@@ -261,27 +266,31 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 			WriteValue(w, offset, int(opr.Value), 4)
 			byteCount += 5
 		} else { // 寄存器操作数, 只占一位
-			opcode += int(opr.ModRm.RegOp)
+			opcode += int(opr.Value)
 			WriteValue(w, offset, opcode, 1)
 			byteCount++
 		}
 	} else if op == I_POP { // pop 指令， 从栈弹出 到指定寄存器
-		opcode += int(opr.ModRm.RegOp)
+		opcode += int(opr.Value)
 		WriteValue(w, offset, opcode, 1)
 		byteCount++
-	} else if op == I_INC || op == I_DEC { // inc 和 dec 不能操作立即数
-		if opr.Length == 1 { // 为什么需要判断长度？
+	} else if op == I_INC || op == I_DEC { // inc 和 dec 不能操作立即数, todo 目前只能操作寄存器
+		regLen := 0
+		if opr.Type == OPRTP_REG {
+			regLen = opr.Length
+		}
+		if regLen == 1 { // 判断寄存器宽度
 			opcode = 0xfe
 			WriteValue(w, offset, opcode, 1)
-			exchar := 0xc0
+			exchar := 0xc0 // inc
 			if op == I_DEC {
 				exchar = 0xc8
 			}
-			exchar += int(opr.ModRm.RegOp)
+			exchar += int(opr.Value) // 这里是寄存器编号
 			WriteValue(w, offset, exchar, 1)
 			byteCount += 2
 		} else {
-			opcode += int(opr.ModRm.RegOp)
+			opcode += int(opr.Value) // 这里是寄存器编号
 			WriteValue(w, offset, opcode, 1)
 			byteCount++
 		}
@@ -290,7 +299,7 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 			opcode = 0xf6
 		}
 		exchar := 0xd8
-		exchar += int(opr.ModRm.RegOp)
+		exchar += int(opr.Value)
 		WriteValue(w, offset, opcode, 1)
 		WriteValue(w, offset, exchar, 1)
 		byteCount += 2
@@ -300,7 +309,7 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 		if op == I_IMUL {
 			exchar = 0xe8
 		}
-		exchar += int(opr.ModRm.RegOp)
+		exchar += int(opr.Value)
 		WriteValue(w, offset, exchar, 1)
 		byteCount += 1
 	}
