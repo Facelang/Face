@@ -1,30 +1,19 @@
-package link
+package elf
 
 import (
+	"bytes"
 	"encoding/binary"
-	"io"
 	"os"
 	"strings"
 )
 
 type bytesReader struct {
-	buf    []byte           // 字节数组
-	r, e   int              // 读取器游标
-	reader binary.ByteOrder // 读取器
+	buf   []byte           // 字节数组
+	r, e  int              // 读取器游标
+	order binary.ByteOrder // 读取器
 }
 
 type BytesReader = *bytesReader
-
-// 返回值是否为 eof
-func (r *bytesReader) read() (byte, error) {
-	if r.r == r.e { // 读到头了
-		return 0, io.EOF
-	}
-
-	ch := r.buf[r.r]
-	r.r += 1
-	return ch, nil
-}
 
 func (r *bytesReader) Byte() byte {
 	defer func() {
@@ -37,21 +26,21 @@ func (r *bytesReader) Uint16() uint16 {
 	defer func() {
 		r.r += 2
 	}()
-	return r.reader.Uint16(r.buf[r.r : r.r+2])
+	return r.order.Uint16(r.buf[r.r : r.r+2])
 }
 
 func (r *bytesReader) Uint32() uint32 {
 	defer func() {
 		r.r += 4
 	}()
-	return r.reader.Uint32(r.buf[r.r : r.r+4])
+	return r.order.Uint32(r.buf[r.r : r.r+4])
 }
 
 func (r *bytesReader) Uint64() uint64 {
 	defer func() {
 		r.r += 8
 	}()
-	return r.reader.Uint64(r.buf[r.r : r.r+8])
+	return r.order.Uint64(r.buf[r.r : r.r+8])
 }
 
 func (r *bytesReader) UintAuto(bits int) uint64 {
@@ -78,42 +67,57 @@ func (r *bytesReader) Party(begin, length int) BytesReader {
 	//if begin+length > r.e {
 	//	return nil, io.EOF
 	//}
-	return NewReader(r.buf[begin:begin+length], r.reader)
+	return NewReader(r.buf[begin:begin+length], r.order)
 }
 
 func NewReader(data []byte, reader binary.ByteOrder) BytesReader {
 	return &bytesReader{
-		buf:    data,
-		r:      0,
-		e:      len(data),
-		reader: reader,
+		buf:   data,
+		r:     0,
+		e:     len(data),
+		order: reader,
 	}
 }
 
+// ObjectRead 直接读取对象
+func ObjectRead[T any](r BytesReader) (*T, error) {
+	ret := new(T)
+	defer func() {
+		r.r += binary.Size(*ret)
+	}()
+	err := binary.Read(bytes.NewReader(r.buf[r.r:]), r.order, ret)
+	return ret, err
+}
+
 // ReadElf 打开 ELF 文件, 需要记录端序
-func ReadElf(file string) (*ElfFile, error) {
-	elf := &ElfFile{Name: file}
+func ReadElf(file string) (*File, error) {
+	elf := &File{Name: file}
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 	magic := Elf_Magic(data[:EI_NIDENT])
+
 	reader := NewReader(data, magic.Endian())
-	reader.Offset(EI_NIDENT)
-	ehdr := NewElfEhdr(reader, magic.Bits())
-	ehdr.Magic = magic
-	elf.Ehdr = ehdr
 	elf.Reader = reader
+
+	elf.Ehdr, err = ObjectRead[Elf32_Ehdr](reader) // 前16位 magic 也读
+	if err != nil {
+		return nil, err
+	}
 
 	// -------------------------------------------
 	// 先解析段表字符串信息
 	// -------------------------------------------
-	offset := int(ehdr.Shoff)
-	shentsize := int(ehdr.Shentsize)
-	off := offset + int(ehdr.Shstrndx)*shentsize
+	offset := int(elf.Ehdr.Shoff)
+	shentsize := int(elf.Ehdr.Shentsize)
+	off := offset + int(elf.Ehdr.Shstrndx)*shentsize
 	next := reader.Party(off, shentsize) // 这里需要解析为指定数据结构
-
-	shstrtab := NewElfShdr(next, ehdr.Magic.Bits()) // 这个是表头， 记录字符串信息的
+	// 这个是表头， 记录字符串信息的
+	shstrtab, err := ObjectRead[Elf32_Shdr](next)
+	if err != nil {
+		return nil, err
+	}
 	shstrTabData := reader.Data(int(shstrtab.Offset), int(shstrtab.Size))
 	elf.Shstrtab = shstrTabData
 	elf.ShstrtabSize = int(shstrtab.Size)
@@ -122,12 +126,15 @@ func ReadElf(file string) (*ElfFile, error) {
 	// 解析段表
 	// -------------------------------------------
 	// 读取完整段表
-	shdrTab := make(map[string]*Elf32_Shdr, int(ehdr.Shnum))
-	shdrNames := make([]string, int(ehdr.Shnum))
-	for index := 0; index < int(ehdr.Shnum); index++ {
+	shdrTab := make(map[string]*Elf32_Shdr, int(elf.Ehdr.Shnum))
+	shdrNames := make([]string, int(elf.Ehdr.Shnum))
+	for index := 0; index < int(elf.Ehdr.Shnum); index++ {
 		begin := offset + index*shentsize
-		raw := reader.Party(begin, shentsize)
-		shdr := NewElfShdr(raw, ehdr.Magic.Bits())
+		next = reader.Party(begin, shentsize)
+		shdr, err := ObjectRead[Elf32_Shdr](next)
+		if err != nil {
+			return nil, err
+		}
 		name := StringTableName(shstrTabData, shdr.Name)
 		shdrTab[name] = shdr
 		shdrNames[index] = name
@@ -152,8 +159,11 @@ func ReadElf(file string) (*ElfFile, error) {
 	symNames := make([]string, symTabLen)
 	for i := 0; i < symTabLen; i++ {
 		begin := int(symTab.Offset) + i*symTabSize
-		next := reader.Party(begin, symTabSize)
-		sym := NewElfSym(next, ehdr.Magic.Bits())
+		next = reader.Party(begin, symTabSize)
+		sym, err := ObjectRead[Elf32_Sym](next)
+		if err != nil {
+			return nil, err
+		}
 		name := StringTableName(strTabData, sym.Name)
 		symNames[i] = name
 		symTabList[name] = sym
@@ -172,8 +182,11 @@ func ReadElf(file string) (*ElfFile, error) {
 			relTabLen := int(relTab.Size) / 8
 			for i := 0; i < relTabLen; i++ {
 				begin := int(relTab.Offset) + i*8
-				next := reader.Party(begin, 8)
-				rel := NewElfRel(next, ehdr.Magic.Bits())
+				next = reader.Party(begin, 8)
+				rel, err := ObjectRead[Elf32_Rel](next)
+				if err != nil {
+					return nil, err
+				}
 				sym := symNames[int(rel.Info>>8)]
 				relName := StringTableName(strTabData, symTabList[sym].Name)
 				elf.RelTab = append(elf.RelTab, &Elf32_RelInfo{
