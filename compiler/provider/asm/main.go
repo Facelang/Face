@@ -12,6 +12,8 @@ func Program(src string) error {
 		target = fmt.Sprintf("%s.o", src[:len(src)-2])
 	}
 
+	// todo 流程需要进一步优化
+	// 解析 -> 校验(略) -> 代码生成 -> elf 文件组装
 	fp := NewFileParser(src)
 	process, err := fp.Parse()
 	if err != nil {
@@ -21,9 +23,21 @@ func Program(src string) error {
 	if err = process.LocalRel(); err != nil {
 		return err
 	}
+	println("局部重定位完成！")
+
 	export := process.ExportElf()
+	println("elf 文件装载完成！")
+
+	// shoff = 511 应该 515
+	// shnum = 10 应该9 【对比头表， shNames 多了一个空. 】
+	//      .bss 段 off = 460 应该 464
+	//      .shstrtab off = 460, size = 51
+	//      .symtab off = 871, size = 16 应该 176(16*11) link=6 info =0 aligen=4
+	//      .strtab off = 887 应该 1051， size = 51 应该 90
+	//      .rel.text off = 应该 1141, size = 应该 32
+	//      .rel.data off = 应该 1173, size = 8
+	// shstrndx = 65535 应该 4
 	return export.WriteFile(target)
-	//ObjFile.WriteElf(f + ".o")
 }
 
 //func Program(file string) {

@@ -56,7 +56,7 @@ type OperandRecord struct {
 	Length   int          // 操作数宽度
 	ModRm    OperandModRm // 扩展寻址类型
 	SIB      OperandSIB   // 扩展 基址+变址+偏移寻址类型
-	RelLabel *LabelRecord // 符号引用， 如果为nil，则表示无需重定位
+	RelLabel string       // 符号引用， 如果为空，则表示无需重定位
 }
 
 // InstrRecord 指令记录表
@@ -76,69 +76,51 @@ func NewInstrRec(name Token, oprLen byte) *InstrRecord {
 	}
 }
 
-// WriteOut 根据指令输出二进制编码
-func (i *InstrRecord) WriteOut(w io.Writer, offset *int) int {
-	byteCount := 0
-
+// Codegen 指令生成二进制编码
+func (i *InstrRecord) Codegen(w io.Writer, offset *int, relocate RelFunc) {
 	// 如果有前缀，则写入前缀
 	if i.Prefix != 0 {
 		WriteValue(w, offset, int(i.Prefix), 1)
-		byteCount++
 	}
 
 	// 根据操作数长度和指令类型，生成不同的机器码
 	switch i.OprLen {
 	case 0: // 零操作数指令，如 ret
-		byteCount += Gen0op(i.Name, w, offset)
+		Gen0op(i.Name, w, offset)
 	case 1: // 单操作数指令
-		byteCount += Gen1op(i.Name, i.OprList[0], w, offset)
+		Gen1op(i.Name, i.OprList[0], w, offset, relocate)
 	case 2: // 双操作数指令，如 mov, add, sub, cmp, lea
 		// 第一个操作数是目的操作数， 第二个才是源！
-		byteCount += Gen2op(i.Name, i.OprList[1], i.OprList[0], w, offset)
+		Gen2op(i.Name, i.OprList[1], i.OprList[0], w, offset, relocate)
 	}
-
-	return byteCount
-}
-
-// ProcessRel 处理可能的重定位信息
-func ProcessRel(lb *LabelRecord, relType int) bool {
-	if lb == nil {
-		return false
-	}
-	ProcessTable.AddRel(lb, relType)
-	return true
 }
 
 // GenXop 扩展操作数有关指令生成， 需要根据内存寻址操作
-func GenXop(opcode byte, opr *OperandRecord, w io.Writer, offset *int) int {
+func GenXop(opcode byte, opr *OperandRecord, w io.Writer, offset *int, relocate RelFunc) {
 	WriteValue(w, offset, int(opcode), 1) // mod = 0 代表没有偏移
 	WriteModRM(w, opr.ModRm, offset)
 	if opr.ModRm.Mod == 0 {
 		if opr.ModRm.Rm == 5 { //[disp32]
-			ProcessRel(opr.RelLabel, R_386_32) // 可能是mov eax,[@buffer],后边disp8和disp32不会出现类似情况
+			relocate(opr.RelLabel, R_386_32) // 可能是mov eax,[@buffer],后边disp8和disp32不会出现类似情况
 			WriteValue(w, offset, 0, 4)
-			return 6
 		} else if opr.ModRm.Rm == 4 { // SIB
 			WriteSIB(w, opr.SIB, offset)
-			return 3
 		}
 	} else if opr.ModRm.Rm == 4 {
 		WriteSIB(w, opr.SIB, offset)
 		if opr.Length > 0 {
 			WriteValue(w, offset, int(opr.Value), opr.Length)
-			return 3 + opr.Length
 		}
 	}
 
-	if opr.Length == 0 {
-		return 2
-	}
-	WriteValue(w, offset, int(opr.Value), opr.Length)
-	return 2 + opr.Length
+	//if opr.Length == 0 {
+	//	return
+	//}
+	//WriteValue(w, offset, int(opr.Value), opr.Length)
 }
 
 // Gen2op 生成双操作数指令
-func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int) int {
+func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int, relocate RelFunc) {
 	index := -1
 	if src.Type == OPRTP_IMM { // 根据源操作数决定指令编码 鉴别操作数种类
 		index = 3
@@ -171,29 +153,26 @@ func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int) int {
 
 		WriteValue(w, offset, int(opcode), 1)
 		WriteModRM(w, dest.ModRm, offset)
-		return 2
 	} else if src.Type == OPRTP_IMM && dest.Type == OPRTP_REG { // 1011w reg (0xB8+寄存器) 立即数到寄存器
 		// 立即数到内存 或 立即数到寄存器， 使用 [操作码+寄存器编号 32位立即数] 表示
 		opc, length := GetOpcodeForReg(op, opcode, byte(dest.Value)) // todo cmp 指令不正确
 		WriteBytes(w, offset, opc, length)
 		// 可能的重定位位置 mov eax,@buffer,也有可能是mov eax,@buffer_len，就不许要重定位，因为是宏
-		ProcessRel(src.RelLabel, R_386_32)       // 这里记录一个重定位（如果有）
+		relocate(src.RelLabel, R_386_32)         // 这里记录一个重定位（如果有）
 		WriteValue(w, offset, int(src.Value), 4) // todo 长度为寄存器宽度 一定要按照长度输出立即数
-		return length + 4
 	} else if src.Type == OPRTP_IMM && dest.Type == OPRTP_REG { // 立即数到内存
 		// todo 暂时没有实现
-		return 0
 	} else if src.Type == OPRTP_MEM { // 内存到寄存器
 		src.ModRm.RegOp = byte(dest.Value)
-		return GenXop(opcode, src, w, offset)
+		GenXop(opcode, src, w, offset, relocate)
 	} else if dest.Type == OPRTP_MEM { // 寄存器到内存
 		//if dest.RelLabel != nil {
 		//	if dest.RelLabel.LbName == "@buffer_len" {
 		//		println(dest.RelLabel)
 		//	}
-		//}
+		//} // todo error 这里多写了四个零
 		dest.ModRm.RegOp = byte(src.Value)
-		return GenXop(opcode, dest, w, offset)
+		GenXop(opcode, dest, w, offset, relocate)
 	} else {
 		panic("语法格式错误！")
 	}
@@ -234,46 +213,38 @@ func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int) int {
 }
 
 // Gen1op 生成单操作数指令
-func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
+func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int, relocate RelFunc) {
 	opcode := int(i1opcode[op-I_CALL]) // 取指令编码
-	byteCount := 0
 
 	if op == I_CALL || (op >= I_JMP && op <= I_JNA) {
 		// 跳转或调用指令
 		if op == I_CALL || op == I_JMP {
 			WriteValue(w, offset, opcode, 1)
-			byteCount += 1
 		} else {
 			WriteValue(w, offset, opcode>>8, 1)
 			WriteValue(w, offset, opcode, 1)
-			byteCount += 2
 		}
 		// 需要计算一下地址, todo 这里目前实际没用到
-		relAddr := int(opr.Value) - (ProcessTable.CurSegOff + 4)
-		if ProcessRel(opr.RelLabel, R_386_PC32) {
+		relAddr := int(opr.Value) - (*offset + 4)
+		if relocate(opr.RelLabel, R_386_PC32) {
 			relAddr = -4
 		}
 		WriteValue(w, offset, relAddr, 4)
-		byteCount += 4
 	} else if op == I_INT { // int 只能8位?
 		WriteValue(w, offset, opcode, 1)
 		WriteValue(w, offset, int(opr.Value), 1)
-		byteCount += 2
 	} else if op == I_PUSH { // push eax, 将寄存器或者立即数压入栈中， 可以操作立即数，寄存器，内存
 		if opr.Type == OPR_IMMD { // 立即数, 操作数+立即数，占4位
 			opcode = 0x68
 			WriteValue(w, offset, opcode, 1)
 			WriteValue(w, offset, int(opr.Value), 4)
-			byteCount += 5
 		} else { // 寄存器操作数, 只占一位
 			opcode += int(opr.Value)
 			WriteValue(w, offset, opcode, 1)
-			byteCount++
 		}
 	} else if op == I_POP { // pop 指令， 从栈弹出 到指定寄存器
 		opcode += int(opr.Value)
 		WriteValue(w, offset, opcode, 1)
-		byteCount++
 	} else if op == I_INC || op == I_DEC { // inc 和 dec 不能操作立即数, todo 目前只能操作寄存器
 		regLen := 0
 		if opr.Type == OPRTP_REG {
@@ -288,11 +259,9 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 			}
 			exchar += int(opr.Value) // 这里是寄存器编号
 			WriteValue(w, offset, exchar, 1)
-			byteCount += 2
 		} else {
 			opcode += int(opr.Value) // 这里是寄存器编号
 			WriteValue(w, offset, opcode, 1)
-			byteCount++
 		}
 	} else if op == I_NEG { // 取负号 0-x
 		if opr.Length == 1 {
@@ -302,7 +271,6 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 		exchar += int(opr.Value)
 		WriteValue(w, offset, opcode, 1)
 		WriteValue(w, offset, exchar, 1)
-		byteCount += 2
 	} else if op == I_IDIV || op == I_IMUL {
 		WriteValue(w, offset, opcode, 1)
 		exchar := 0xf8
@@ -311,9 +279,7 @@ func Gen1op(op Token, opr *OperandRecord, w io.Writer, offset *int) int {
 		}
 		exchar += int(opr.Value)
 		WriteValue(w, offset, exchar, 1)
-		byteCount += 1
 	}
-	return byteCount
 }
 
 func Gen0op(opt Token, w io.Writer, offset *int) int {

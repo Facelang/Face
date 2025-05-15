@@ -10,7 +10,7 @@ func main() {
 	//for _, b := range buf {
 	//	fmt.Printf("%d, ", b)
 	//}
-	_ = asm.Program("example/ass/hello.s")
+	_ = asm.Program("example/ass/common.s")
 	println("完成编译！")
 	//file, _ := elf.ReadElf("example/ass/common.o")
 	//file.Objdump()

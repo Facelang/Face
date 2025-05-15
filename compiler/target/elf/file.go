@@ -87,6 +87,21 @@ type Elf32_Shdr struct {
 	Entsize   Elf32_Word // 表项大小
 }
 
+func NewShdr(Type SectionType, Flags SectionFlag, Offset, Size int) *Elf32_Shdr {
+	return &Elf32_Shdr{
+		Name:      0,
+		Type:      Elf32_Word(Type),
+		Flags:     Elf32_Word(Flags),
+		Addr:      0,
+		Offset:    Elf32_Off(Offset),
+		Size:      Elf32_Word(Size),
+		Link:      0,
+		Info:      0,
+		Addralign: 4,
+		Entsize:   0,
+	}
+}
+
 // Elf32_Sym ELF32符号表项结构
 type Elf32_Sym struct {
 	Name  uint32 // 符号名
@@ -168,7 +183,7 @@ func NewElfFile(magic Elf_Magic, eType, eMachine Elf32_Half) *File {
 	// 其它字节默认为 0
 
 	// 添加空节表项(重定位文件和可执行文件都有)
-	file.AddShdr("", 0, 0, 0, 0, 0, 0, 0, 0, 0)
+	file.AddShdr("", &Elf32_Shdr{})
 
 	// 添加空符号表项
 	file.AddSym("", nil)
@@ -182,37 +197,33 @@ func (e *File) Bits() int {
 
 func (e *File) Endian() binary.ByteOrder { return e.Ehdr.Magic.Endian() }
 
-// AddShdr sh_name和sh_offset都需要重新计算 todo
-func (e *File) AddShdrBy(shName string, size uint32) {
-	//off := uint32(52 + ProcessTable.DataLen)
-	//if shName == ".text" {
-	//	e.AddShdrDetail(shName, SHT_PROGBITS, SHF_ALLOC|SHF_EXECINSTR, 0, off, size, 0, 0, 4, 0)
-	//} else if shName == ".data" {
-	//	e.AddShdrDetail(shName, SHT_PROGBITS, SHF_ALLOC|SHF_WRITE, 0, off, size, 0, 0, 4, 0)
-	//} else if shName == ".bss" {
-	//	e.AddShdrDetail(shName, SHT_NOBITS, SHF_ALLOC|SHF_WRITE, 0, off, size, 0, 0, 4, 0)
-	//}
+func (e *File) AddShdr(shName string, shdr *Elf32_Shdr) {
+	if shdr != nil {
+		e.ShdrTab[shName] = shdr
+	}
+	e.ShdrNames = append(e.ShdrNames, shName)
 }
 
-// AddShdr 添加一个段表项
-func (e *File) AddShdr(shName string, sh_type, sh_flags Elf32_Word,
-	sh_addr Elf32_Addr, sh_offset Elf32_Off,
-	sh_size, sh_link, sh_info, sh_addralign, sh_entsize Elf32_Word) {
-	sh := &Elf32_Shdr{
-		Name:      0,
-		Type:      sh_type,
-		Flags:     sh_flags,
-		Addr:      sh_addr,
-		Offset:    sh_offset,
-		Size:      sh_size,
-		Link:      sh_link,
-		Info:      sh_info,
-		Addralign: sh_addralign,
-		Entsize:   sh_entsize,
+// AddShdrSec sh_name和sh_offset都需要重新计算 todo
+func (e *File) AddShdrSec(section *Section, offset int) {
+	if section.Name == ".text" {
+		e.AddShdr(section.Name,
+			NewShdr(SHT_PROGBITS, SHF_ALLOC|SHF_EXECINSTR, offset, section.Length),
+		)
+	} else if section.Name == ".data" {
+		e.AddShdr(section.Name,
+			NewShdr(SHT_PROGBITS, SHF_ALLOC|SHF_WRITE, offset, section.Length),
+		)
+	} else if section.Name == ".bss" { // 非必须
+		// 关于 .bss 段： 用于存储未初始化的全局变量和静态变量
+		// 特点：在程序价值时会被自动初始化为 0
+		// 优势：节省可执行文件空间，只占用很少部分（通常只记录大小）
+		// 场景：大小数组或缓冲区的申明， 未初始化的全局变量，未初始化的静态局部变量， 需要零初始化的数据结构
+		// 语法: buffer: resw 1024 // 记录 Buffer 符号 需要 resw 宽度 * 1024 空间 (resw 等同于 dw)
+		e.AddShdr(section.Name,
+			NewShdr(SHT_NOBITS, SHF_ALLOC|SHF_WRITE, offset, section.Length),
+		)
 	}
-	// 这里 ShdrTab 可以直接使用数组，ShdrNames写入Name时，直接返回索引。写入 Sh_name
-	e.ShdrTab[shName] = sh
-	e.ShdrNames = append(e.ShdrNames, shName)
 }
 
 // AddPhdrRec 添加程序头表
@@ -257,8 +268,10 @@ func (e *File) AddProgSeg(name string, seg *ProgSeg) {
 	}
 	// 添加程序头表也要添加对应的段
 	//添加一个段表项，暂时按照4字节对齐
-	e.AddShdr(name, Elf32_Word(shType), Elf32_Word(shFlags),
-		seg.BaseAddr, seg.Offset, seg.Size, 0, 0, Elf32_Word(shAlign), 0)
+	shdr := NewShdr(shType, shFlags, int(seg.Offset), int(seg.Size))
+	shdr.Addr = seg.BaseAddr
+	shdr.Addralign = Elf32_Word(shAlign)
+	e.AddShdr(name, shdr)
 }
 
 func (e *File) AddSym(name string, sym *Elf32_Sym) {
@@ -279,6 +292,10 @@ func (e *File) AddSym(name string, sym *Elf32_Sym) {
 	}
 	e.SymTab[name] = target
 	e.SymNames = append(e.SymNames, name)
+}
+
+func (e *File) AddRel(info *Elf32_RelInfo) {
+	e.RelTab = append(e.RelTab, info)
 }
 
 func (e *File) GetSegIndex(seg string) int {
