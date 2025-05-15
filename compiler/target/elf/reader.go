@@ -3,6 +3,7 @@ package elf
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"os"
 	"strings"
 )
@@ -92,6 +93,10 @@ func ObjectRead[T any](r BytesReader) (*T, error) {
 // ReadElf 打开 ELF 文件, 需要记录端序
 func ReadElf(file string) (*File, error) {
 	elf := &File{Name: file}
+	f, err := os.Open(file)
+	d, err := io.ReadAll(f)
+	println(d)
+	os.Chmod(file, 0666)
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err

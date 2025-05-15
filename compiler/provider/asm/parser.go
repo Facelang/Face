@@ -158,7 +158,7 @@ func (p *parser) valType(cont *[]int, contLen *int) {
 		if lb.Type == EQU_LABEL || lb.Type == LOCAL_LABEL {
 			(*cont)[*contLen] = lb.Addr
 			*contLen++
-		} else { // 未定义或非法符号
+		} else { // 未定义或非法符号, equ 做了单独处理！
 			p.ProcTable.AddRel(p.id(), R_386_32)
 		}
 	default:
@@ -199,7 +199,7 @@ func (p *parser) opr() *OperandRecord {
 		opr.Length = 4 // 代表 4*8
 	case IDENT: // 变量名 立即数
 		opr.Type = OPRTP_IMM
-		opr.RelLabel = p.ProcTable.GetLabel(p.id()) // 记录重定位，代码生成时需要替换
+		opr.RelLabel = p.id() // 记录重定位，代码生成时需要替换
 	case LBRACK: // 内存寻址
 		opr.Type = OPRTP_MEM
 		p.addr(opr)
@@ -230,7 +230,7 @@ func (p *parser) addr(opr *OperandRecord) { // [立即数， 变量， 寄存器
 		opr.Length = 4 // 需要记录宽度
 		opr.ModRm.Mod = 0
 		opr.ModRm.Rm = 5
-		opr.RelLabel = p.ProcTable.GetLabel(p.id())
+		opr.RelLabel = p.id()
 	default: // 寄存器寻址 [eax, edi]
 		p.regaddr(opr, token)
 	}

@@ -6,13 +6,13 @@ import (
 )
 
 type reader struct {
-	buf               []byte    // 缓存池
-	ch                byte      // 缓存字符
-	file              string    // 文件名 / 路径
-	b, r, e           int       // 读取器游标
-	col, line, offset int       // 文件读取指针行列号
-	err               error     // 错误信息
-	errFunc           ErrorFunc // 错误处理函数
+	buf               []byte  // 缓存池
+	ch                byte    // 缓存字符
+	file              string  // 文件名 / 路径
+	b, r, e           int     // 读取器游标
+	col, line, offset int     // 文件读取指针行列号
+	err               error   // 错误信息
+	errFunc           ErrFunc // 错误处理函数
 }
 
 func (r *reader) error(msg string) {
@@ -23,7 +23,7 @@ func (r *reader) errorf(format string, args ...interface{}) {
 	r.error(fmt.Sprintf(format, args...))
 }
 
-func (r *reader) init(file string, errFunc ErrorFunc) error {
+func (r *reader) init(file string, errFunc ErrFunc) error {
 	r.file = file
 	r.errFunc = errFunc
 	return r.reset()

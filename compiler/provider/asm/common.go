@@ -4,6 +4,17 @@ import (
 	"os"
 )
 
+type ErrFunc func(file string, line, col, off int, msg string)
+
+// 缓存溢出
+//func overflow(b *buffer) error {
+//	return fmt.Errorf(
+//		"Cache Overflow. The Maximum Limit 64M "+
+//			"In File(%s %d,%d)", b.file, b.line+1, b.col+1)
+//}
+
+type RelFunc func(string, int) bool
+
 // var Fout *os.File = nil // 输出文件指针
 // var ScanLop = 0              // 扫描次数，1表示第一遍，2表示第二遍
 //var RelLb *LabelRecord = nil //

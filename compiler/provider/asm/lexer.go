@@ -12,7 +12,7 @@ type lexer struct {
 	backToken         Token   // 回退Token
 }
 
-func (l *lexer) init(file string, errFunc ErrorFunc) error {
+func (l *lexer) init(file string, errFunc ErrFunc) error {
 	defer func() { l.reader.read() }()
 	return l.reader.init(file, errFunc)
 }

@@ -247,8 +247,11 @@ func (l *Linker) ExportElf() *elf.File {
 	}
 
 	// .shstrtab
-	target.AddShdr(".shstrtab", elf.Elf32_Word(elf.SHT_STRTAB), 0, 0,
-		curOff, elf.Elf32_Word(shstrtabSize), elf.Elf32_Word(elf.SHN_UNDEF), 0, 1, 0)
+	shstrtab := elf.NewShdr(elf.SHT_STRTAB, 0, int(curOff), shstrtabSize)
+	shstrtab.Link = elf.Elf32_Word(elf.SHN_UNDEF)
+	shstrtab.Addralign = 1
+	target.AddShdr(".shstrtab", shstrtab)
+
 	target.Ehdr.Shstrndx = elf.Elf32_Half(target.GetSymIndex(".shstrtab"))
 	curOff += uint32(shstrtabSize) //段表偏移
 	target.Ehdr.Shoff = curOff
@@ -257,11 +260,14 @@ func (l *Linker) ExportElf() *elf.File {
 
 	//生成符号表项
 	curOff += 40 * (4 + uint32(target.Ehdr.Shnum)) //符号表偏移
-	target.AddShdr(".symtab", elf.Elf32_Word(elf.SHT_SYMTAB), 0, 0,
-		curOff, elf.Elf32_Word((1+len(l.SymDef))*16), 0, 0, 1, 16)
+	symtab := elf.NewShdr(elf.SHT_SYMTAB, 0, int(curOff), (1+len(l.SymDef))*16)
+	symtab.Addralign = 1
+	symtab.Entsize = 16
+	target.AddShdr(".symtab", symtab)
 	target.ShdrTab[".symtab"].Link = elf.Elf32_Word(target.GetSegIndex(".symtab") + 1) //。strtab默认在.symtab之后
-	strtabSize := 0                                                                    //字符串表大小
-	for _, link := range l.SymDef {                                                    //遍历所有符号
+
+	strtabSize := 0                 //字符串表大小
+	for _, link := range l.SymDef { //遍历所有符号
 		strtabSize += len(link.Name) + 1
 		sym := link.Prov.SymTab[link.Name]
 		sym.Shndx = uint16(target.GetSegIndex(link.Prov.ShdrNames[sym.Shndx]))
@@ -273,9 +279,9 @@ func (l *Linker) ExportElf() *elf.File {
 
 	// .strtab偏移
 	curOff += uint32((1 + len(l.SymDef)) * 16)
-	// 添加 .strtab
-	target.AddShdr(".strtab", elf.Elf32_Word(elf.SHT_STRTAB), 0, 0,
-		curOff, uint32(strtabSize), 0, 0, 1, 0)
+	strtab := elf.NewShdr(elf.SHT_STRTAB, 0, int(curOff), strtabSize)
+	strtab.Addralign = 1
+	target.AddShdr(".strtab", strtab)
 
 	// 填充字符串表
 	target.Strtab = make([]byte, strtabSize)
