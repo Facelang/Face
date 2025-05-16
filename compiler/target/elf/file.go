@@ -320,6 +320,11 @@ func (e *File) ReadData(offset Elf32_Off, size Elf32_Word) []byte {
 	return e.Reader.Data(int(offset), int(size))
 }
 
+func (e *File) ReadDataBy(seg string) []byte {
+	section := e.ShdrTab[seg]
+	return e.Reader.Data(int(section.Offset), int(section.Size))
+}
+
 func (e *File) WriteFile(target string) error {
 	return FileWrite(e, target)
 }
