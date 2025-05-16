@@ -228,15 +228,25 @@ func (proc *ProcessTable) LocalRel() error {
 			continue // 不做处理，都是要重定位的
 		}
 
+		if lb.Type == EQU_LABEL {
+			proc.RelocateRecList[i] = nil // 移除重定位表, 保留绝对重定位
+		}
+
 		relAddr := lb.Addr
 		if rel.Type == R_386_PC32 { // 相对重定位
-			relAddr -= rel.Offset + 4 // lb.addr 符号位地址, rel 当前地址
+			relAddr -= rel.Offset + 4     // lb.addr 符号位地址, rel 当前地址
+			proc.RelocateRecList[i] = nil // 移除重定位表, 保留绝对重定位
 		}
 
 		// 修改指定位置的数据
 		copy(text[rel.Offset:rel.Offset+4], ValueBytes(relAddr, 4))
-		proc.RelocateRecList[i] = nil // 移除重定位表
+
+		//if lb.Type == EQU_LABEL {
+		//	proc.RelocateRecList[i] = nil // 移除重定位表
+		//}
 	}
+	proc.InstrBuff.Reset()
+	proc.InstrBuff.Write(text)
 	return nil
 }
 
@@ -250,10 +260,119 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 	offset := int(target.Ehdr.Ehsize)
 	for _, section := range proc.SectionList {
 		offset += (4 - offset%4) % 4 // 4字节对齐（头信息, 52/64 也是 4 字节对齐的，其它未知）
+		switch section.Name {
+		case ".text":
+			target.ProgSegList = append(
+				target.ProgSegList,
+				&elf.ProgSeg{
+					Name:   section.Name,
+					Offset: uint32(offset),
+					Size:   uint32(section.Length),
+					Blocks: []*elf.Block{
+						{
+							Data: proc.InstrBuff.Bytes(),
+							Size: uint32(proc.InstrBuff.Len()),
+						},
+					},
+				},
+			)
+		case ".data":
+			dataBuffer := bytes.NewBuffer(nil)
+			for _, label := range proc.LabelRecList {
+				if label.Section == ".data" && label.Type == LOCAL_LABEL {
+					for t := 0; t < label.Times; t++ {
+						for n := 0; n < label.ContLen; n++ {
+							dataBuffer.Write(ValueBytes(label.Cont[n], label.Size))
+						}
+					}
+				}
+			}
+			target.ProgSegList = append(
+				target.ProgSegList,
+				&elf.ProgSeg{
+					Name:   section.Name,
+					Offset: uint32(offset),
+					Size:   uint32(section.Length),
+					Blocks: []*elf.Block{
+						{
+							Data: dataBuffer.Bytes(),
+							Size: uint32(dataBuffer.Len()),
+						},
+					},
+				},
+			)
+		case ".bss":
+			target.ProgSegList = append(
+				target.ProgSegList,
+				&elf.ProgSeg{
+					Name:   section.Name,
+					Offset: uint32(offset),
+					Size:   uint32(section.Length),
+					Blocks: nil,
+				},
+			)
+		default:
+
+		}
 		target.AddShdrSec(section, offset)
+
 		if section.Name != ".bss" { // .bss 65535 不添加
 			offset += section.Length
 		}
+	}
+
+	// 先添加符号表
+	for _, label := range proc.LabelRecList {
+		if label.Type == EQU_LABEL {
+			continue
+		}
+
+		name := label.Name
+		/*
+			//对于@while_ @if_ @lab_ @cal_开头和@s_stack的都是局部符号，可以不用导出，但是为了objdump方便而导出
+		*/
+		if strings.HasPrefix(name, "@lab_") || strings.HasPrefix(name, "@if_") ||
+			strings.HasPrefix(name, "@while_") ||
+			strings.HasPrefix(name, "@cal_") || strings.HasPrefix(name, "@s_stack") {
+			continue
+		}
+
+		//解析符号的全局性局部性，避免符号冲突
+		glb := false
+
+		if label.Section == ".text" { // 代码段
+			if name == "@str2long" || name == "@procBuf" {
+				glb = true
+			} else if name[0] != '@' { //不带@符号的，都是定义的函数或者_start,全局的
+				glb = true
+			}
+		} else if label.Section == ".data" { // 数据段
+			if strings.HasPrefix(name, "@str_") { // @str_开头符号
+				glb = !(name[5] >= '0' && name[5] <= '9') //不是紧跟数字，全局str
+			} else { // 其他类型全局符号
+				glb = true
+			}
+		} else {
+			glb = label.Type == UNDEFINED_LABEL || label.Type == EXTERNAL_LABEL
+		}
+
+		sym := elf.Elf32_Sym{
+			Name:  0,
+			Value: uint32(label.Addr),
+			Size:  uint32(label.Times * label.Size * label.ContLen),
+		}
+		if glb { // 统一记作无类型符号，和链接器lit协议保持一致
+			sym.Info = elf.ST_INFO(elf.STB_GLOBAL, elf.STT_NOTYPE) //全局符号
+		} else {
+			sym.Info = elf.ST_INFO(elf.STB_LOCAL, elf.STT_NOTYPE) //局部符号，避免名字冲突
+		}
+
+		if label.Type == UNDEFINED_LABEL || label.Type == EXTERNAL_LABEL {
+			sym.Shndx = 0 // STN_UNDEF
+		} else {
+			sym.Shndx = uint16(target.GetSegIndex(label.Section))
+		}
+		target.AddSym(label.Name, &sym)
 	}
 
 	// 段表字符串表
@@ -310,71 +429,13 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 	offset += target.ShstrtabSize
 
 	target.Ehdr.Shoff = elf.Elf32_Off(offset)
-	// todo 后面这三行需要验证
-	target.Ehdr.Shentsize = 40
-	target.Ehdr.Shnum = elf.Elf32_Half(4 + len(proc.SectionList))
-	target.Ehdr.Shstrndx = elf.Elf32_Half(target.GetSymIndex(".shstrtab"))
-
-	for _, label := range proc.LabelRecList {
-		if label.Type == EQU_LABEL {
-			continue
-		}
-
-		name := label.Name
-		/*
-			//对于@while_ @if_ @lab_ @cal_开头和@s_stack的都是局部符号，可以不用导出，但是为了objdump方便而导出
-		*/
-		if strings.HasPrefix(name, "@lab_") || strings.HasPrefix(name, "@if_") ||
-			strings.HasPrefix(name, "@while_") ||
-			strings.HasPrefix(name, "@cal_") || strings.HasPrefix(name, "@s_stack") {
-			continue
-		}
-
-		//解析符号的全局性局部性，避免符号冲突
-		glb := false
-
-		if label.Section == ".text" { // 代码段
-			if name == "@str2long" || name == "@procBuf" {
-				glb = true
-			} else if name[0] != '@' { //不带@符号的，都是定义的函数或者_start,全局的
-				glb = true
-			}
-		} else if label.Section == ".data" { // 数据段
-			if strings.HasPrefix(name, "@str_") { // @str_开头符号
-				glb = !(name[5] >= '0' && name[5] <= '9') //不是紧跟数字，全局str
-			} else { // 其他类型全局符号
-				glb = true
-			}
-		} else {
-			glb = label.Type == UNDEFINED_LABEL || label.Type == EXTERNAL_LABEL
-		}
-
-		sym := elf.Elf32_Sym{
-			Name:  0,
-			Value: uint32(label.Addr),
-			Size:  uint32(label.Times * label.Size * label.ContLen),
-		}
-		if glb { // 统一记作无类型符号，和链接器lit协议保持一致
-			sym.Info = elf.ST_INFO(elf.STB_GLOBAL, elf.STT_NOTYPE) //全局符号
-		} else {
-			sym.Info = elf.ST_INFO(elf.STB_LOCAL, elf.STT_NOTYPE) //局部符号，避免名字冲突
-		}
-
-		if label.Type == UNDEFINED_LABEL || label.Type == EXTERNAL_LABEL {
-			sym.Shndx = 0 // STN_UNDEF
-		} else {
-			sym.Shndx = uint16(target.GetSegIndex(label.Section))
-		}
-		target.AddSym(label.Name, &sym)
-	}
 
 	// ---- 添加符号表 ToDo 需要先构建符号表
 	offset += 9 * int(target.Ehdr.Shentsize) // 什么意思？符号表表偏移 = 8个段+空段，段表字符串表偏移
 	// .symtab,sh_link 代表.strtab索引，默认在.symtab之后,sh_info不能确定
 	symtabSize := (len(target.SymNames)) * 16 // 每个符号16字节
 	symtab := elf.NewShdr(elf.SHT_SYMTAB, 0, offset, symtabSize)
-	symtab.Info = 1
-	symtab.Addralign = 4
+	symtab.Addralign = 1
 	symtab.Entsize = 16
 	target.AddShdr(".symtab", symtab)
 	symtab.Link = elf.Elf32_Word(target.GetSegIndex(".symtab")) + 1 //.strtab默认在.symtab之后(当前索引+1)
@@ -386,20 +447,20 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 		target.StrtabSize += len(target.SymNames[i]) + 1
 	}
 
-	strtab := elf.NewShdr(elf.SHT_STRTAB, 0, offset, target.ShstrtabSize)
-	strtab.Link = elf.Elf32_Word(elf.SHN_UNDEF)
-	strtab.Addralign = 1
-	target.AddShdr(".strtab", strtab)
-
+	// 填充字符串表 & 串表与符号表名字更新
 	target.Strtab = make([]byte, target.StrtabSize)
-	//串表与符号表名字更新
-	// 填充字符串表
-	strtabIndex := 1 // 索引1开始
+	strtabIndex := 0 // 索引1开始
 	for _, name := range target.SymNames {
 		target.SymTab[name].Name = uint32(strtabIndex) // 将符号名对应索引记录到符号表
 		copy(target.Strtab[strtabIndex:], name+"\x00")
 		strtabIndex += len(name) + 1
 	}
+	//shstrIndex[""] = index - 1
+
+	strtab := elf.NewShdr(elf.SHT_STRTAB, 0, offset, target.StrtabSize)
+	strtab.Link = elf.Elf32_Word(elf.SHN_UNDEF)
+	strtab.Addralign = 1
+	target.AddShdr(".strtab", strtab)
 
 	// ---- 重定位表
 	offset += target.StrtabSize
@@ -419,7 +480,8 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 			},
 			RelName: rel.Label, // 符号名称
 		}
-		if rel.Section == ".text" {
+
+		if rel.Section == ".text" { // 应该有4个段，实际只有一个段， 应该记录所有相对重定位，EQU除外
 			target.AddRel(relInfo)
 			relTextSize += 8 // 每个重定位项8字节
 		} else if rel.Section == ".data" {
@@ -454,6 +516,10 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 	for n, shdr := range target.ShdrTab {
 		shdr.Name = uint32(shstrIndex[n])
 	}
+
+	target.Ehdr.Shentsize = 40
+	target.Ehdr.Shnum = elf.Elf32_Half(len(target.ShdrTab))
+	target.Ehdr.Shstrndx = elf.Elf32_Half(target.GetSegIndex(".shstrtab"))
 
 	return target
 

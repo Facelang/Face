@@ -30,8 +30,7 @@ func Program(src string) error {
 
 	// shoff = 511 应该 515
 	// shnum = 10 应该9 【对比头表， shNames 多了一个空. 】
-	//      .strtab off = 1051， size = 51 应该 90
-	//      .rel.text off = 应该 1141, size = 应该 32
+	//      .rel.text off = 1141, size = 32
 	//      .rel.data off = 应该 1173, size = 8
 	// shstrndx = 65535 应该 4
 	return export.WriteFile(target)

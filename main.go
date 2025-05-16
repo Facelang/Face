@@ -1,6 +1,10 @@
 package main
 
-import "face-lang/compiler/provider/asm"
+import (
+	"face-lang/compiler/provider/asm"
+	"face-lang/compiler/provider/link"
+	"fmt"
+)
 
 func main() {
 	//buf, err := os.ReadFile("common.t")
@@ -10,14 +14,16 @@ func main() {
 	//for _, b := range buf {
 	//	fmt.Printf("%d, ", b)
 	//}
-	_ = asm.Program("example/ass/common.s")
+	_ = asm.Program("example/loc/common.s")
 	println("完成编译！")
 	//file, _ := elf.ReadElf("common.o")
 	//file.Objdump()
-	//err := link.Link("example/ass/hello", "example/ass/common.o", "example/ass/test.o")
-	//if err != nil {
-	//	panic(err)
-	//}
-	//fmt.Println("链接完成！")
+
+	// 汇编器没有问题！
+	err := link.Link("example/cit/hello", "example/cit/common.o", "example/cit/hello.o")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("链接完成！")
 
 }

@@ -218,7 +218,7 @@ main:
 	pop ebp
 	ret
 section .data
-	@str_1 db "Hello a + b = ["
+	@str_1 db "Hello1 a + b = ["
 	@str_1_len equ 15
 	@str_2 db "]",10
 	@str_2_len equ 2

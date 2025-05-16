@@ -146,21 +146,21 @@ func (p *parser) valType(cont *[]int, contLen *int) {
 	token := p.NextToken()
 	switch token {
 	case NUMBER:
-		*contLen++
 		(*cont)[*contLen] = p.number()
+		*contLen++
 	case STRING:
 		for _, ch := range []byte(p.Lexer.id) {
-			*contLen++
 			(*cont)[*contLen] = int(ch)
+			*contLen++
 		}
 	case IDENT: // 引用变量，变量必须已经被申明， 如果符号未定义，则记录重定位
-		*contLen++
 		lb := p.ProcTable.GetLabel(p.id())
 		if lb.Type == EQU_LABEL || lb.Type == LOCAL_LABEL {
 			(*cont)[*contLen] = lb.Addr
 		} else { // 未定义或非法符号, equ 做了单独处理！
 			p.ProcTable.AddRel(p.id(), R_386_32)
 		}
+		*contLen++
 	default:
 		p.Err = fmt.Errorf("[valType](%d,%d): %s, %s，数据类型获取异常！",
 			p.Lexer.line, p.Lexer.col, token.String(), p.Lexer.id)
@@ -199,7 +199,8 @@ func (p *parser) opr() *OperandRecord {
 		opr.Length = 4 // 代表 4*8
 	case IDENT: // 变量名 立即数
 		opr.Type = OPRTP_IMM
-		opr.RelLabel = p.id() // 记录重定位，代码生成时需要替换
+		opr.RelLabel = p.id()        // 记录重定位，代码生成时需要替换
+		p.ProcTable.GetLabel(p.id()) // 如果没有符号，需要生成
 	case LBRACK: // 内存寻址
 		opr.Type = OPRTP_MEM
 		p.addr(opr)
@@ -231,6 +232,7 @@ func (p *parser) addr(opr *OperandRecord) { // [立即数， 变量， 寄存器
 		opr.ModRm.Mod = 0
 		opr.ModRm.Rm = 5
 		opr.RelLabel = p.id()
+		p.ProcTable.GetLabel(p.id())
 	default: // 寄存器寻址 [eax, edi]
 		p.regaddr(opr, token)
 	}

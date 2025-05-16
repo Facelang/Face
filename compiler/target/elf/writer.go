@@ -1,14 +1,14 @@
 package elf
 
 import (
+	"bytes"
 	"encoding/binary"
-	"io"
 	"os"
 )
 
 type fileWriter struct {
 	name  string           // 文件名
-	w     io.Writer        // 文件输出
+	w     *bytes.Buffer    // 文件输出
 	err   error            // 错误记录
 	order binary.ByteOrder // 读取器
 }
@@ -25,8 +25,21 @@ func (f *fileWriter) Write(data any) error {
 	return binary.Write(f.w, f.order, data)
 }
 
+func (f *fileWriter) Flush() error {
+	if f.err != nil {
+		return f.err
+	}
+	w, err := os.Create(f.name) // 可以覆盖
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(f.w.Bytes())
+	return err
+}
+
 func NewWriter(file string, order binary.ByteOrder) FileWriter {
-	w, err := os.Create(file) // 可以覆盖
+	//w, err := os.Create(file) // 可以覆盖
+	w, err := bytes.NewBuffer(nil), error(nil)
 	return &fileWriter{name: file, w: w, err: err, order: order}
 }
 
@@ -35,35 +48,57 @@ func FileWrite(file *File, target string) error {
 	w := NewWriter(target, file.Endian())
 	_ = w.Write(file.Ehdr) //elf文件头
 
-	//程序头表
-	for _, phdr := range file.PhdrTab {
-		_ = w.Write(phdr)
-	}
-
-	// 【数据段】最重要的部分
-	pad := [1]byte{0}
-	for _, seg := range file.ProgSegList {
-		padnum := seg.Offset - seg.Begin
-		for ; padnum != 0; padnum-- { //填充
-			_ = w.Write(pad)
+	// 可执行文件
+	if file.Ehdr.Type == Elf32_Half(ET_EXEC) {
+		//程序头表
+		for _, phdr := range file.PhdrTab {
+			_ = w.Write(phdr)
 		}
-		if seg.Name == ".bss" {
-			continue
+		// 【数据段】最重要的部分
+		pad := [1]byte{0}
+		for _, seg := range file.ProgSegList {
+			padnum := seg.Offset - seg.Begin
+			for ; padnum != 0; padnum-- { //填充
+				_ = w.Write(pad)
+			}
+			if seg.Name == ".bss" {
+				continue
+			}
+			var oldBlock *Block = nil
+			for i := 0; i < len(seg.Blocks); i++ {
+				b := seg.Blocks[i]
+				if oldBlock != nil {
+					padnum = b.Offset - (oldBlock.Offset + oldBlock.Size)
+					for ; padnum != 0; padnum-- { //填充
+						_ = w.Write(pad)
+					}
+				}
+				oldBlock = b
+				_ = w.Write(b.Data)
+			}
 		}
-		var oldBlock *Block = nil
+	} else {
+		// 【数据段】最重要的部分
 		instPad := [1]byte{0x90}
-		for i := 0; i < len(seg.Blocks); i++ {
-			b := seg.Blocks[i]
-			if oldBlock != nil {
-				padnum = b.Offset - (oldBlock.Offset + oldBlock.Size)
+		var prev *ProgSeg = nil
+		for _, seg := range file.ProgSegList {
+			if prev != nil {
+				padnum := seg.Offset - (prev.Offset + prev.Size)
 				for ; padnum != 0; padnum-- { //填充
 					_ = w.Write(instPad)
 				}
 			}
-			oldBlock = b
-			_ = w.Write(b.Data)
+			if seg.Name == ".bss" {
+				continue
+			}
+			for i := 0; i < len(seg.Blocks); i++ {
+				b := seg.Blocks[i]
+				_ = w.Write(b.Data)
+			}
+			prev = seg
 		}
 	}
+
 	// 最后写段表字符串
 	_ = w.Write(file.Shstrtab)
 
@@ -80,5 +115,10 @@ func FileWrite(file *File, target string) error {
 	// 字符串表
 	_ = w.Write(file.Strtab)
 
-	return nil
+	// 重定位表
+	for _, rel := range file.RelTab {
+		_ = w.Write(rel.Rel)
+	}
+
+	return w.Flush() // 最后一部再写入文件
 }
