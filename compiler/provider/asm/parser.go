@@ -146,18 +146,18 @@ func (p *parser) valType(cont *[]int, contLen *int) {
 	token := p.NextToken()
 	switch token {
 	case NUMBER:
-		(*cont)[*contLen] = p.number()
 		*contLen++
+		(*cont)[*contLen] = p.number()
 	case STRING:
 		for _, ch := range []byte(p.Lexer.id) {
-			(*cont)[*contLen] = int(ch)
 			*contLen++
+			(*cont)[*contLen] = int(ch)
 		}
 	case IDENT: // 引用变量，变量必须已经被申明， 如果符号未定义，则记录重定位
+		*contLen++
 		lb := p.ProcTable.GetLabel(p.id())
 		if lb.Type == EQU_LABEL || lb.Type == LOCAL_LABEL {
 			(*cont)[*contLen] = lb.Addr
-			*contLen++
 		} else { // 未定义或非法符号, equ 做了单独处理！
 			p.ProcTable.AddRel(p.id(), R_386_32)
 		}

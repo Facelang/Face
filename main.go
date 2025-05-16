@@ -12,7 +12,7 @@ func main() {
 	//}
 	_ = asm.Program("example/ass/common.s")
 	println("完成编译！")
-	//file, _ := elf.ReadElf("example/ass/common.o")
+	//file, _ := elf.ReadElf("common.o")
 	//file.Objdump()
 	//err := link.Link("example/ass/hello", "example/ass/common.o", "example/ass/test.o")
 	//if err != nil {

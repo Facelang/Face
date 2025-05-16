@@ -30,10 +30,7 @@ func Program(src string) error {
 
 	// shoff = 511 应该 515
 	// shnum = 10 应该9 【对比头表， shNames 多了一个空. 】
-	//      .bss 段 off = 460 应该 464
-	//      .shstrtab off = 460, size = 51
-	//      .symtab off = 871, size = 16 应该 176(16*11) link=6 info =0 aligen=4
-	//      .strtab off = 887 应该 1051， size = 51 应该 90
+	//      .strtab off = 1051， size = 51 应该 90
 	//      .rel.text off = 应该 1141, size = 应该 32
 	//      .rel.data off = 应该 1173, size = 8
 	// shstrndx = 65535 应该 4

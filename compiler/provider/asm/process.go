@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 type LabelType uint8
@@ -314,7 +315,61 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 	target.Ehdr.Shnum = elf.Elf32_Half(4 + len(proc.SectionList))
 	target.Ehdr.Shstrndx = elf.Elf32_Half(target.GetSymIndex(".shstrtab"))
 
-	offset += 9 * 40 // 什么意思？符号表表偏移 = 8个段+空段，段表字符串表偏移
+	for _, label := range proc.LabelRecList {
+		if label.Type == EQU_LABEL {
+			continue
+		}
+
+		name := label.Name
+		/*
+			//对于@while_ @if_ @lab_ @cal_开头和@s_stack的都是局部符号，可以不用导出，但是为了objdump方便而导出
+		*/
+		if strings.HasPrefix(name, "@lab_") || strings.HasPrefix(name, "@if_") ||
+			strings.HasPrefix(name, "@while_") ||
+			strings.HasPrefix(name, "@cal_") || strings.HasPrefix(name, "@s_stack") {
+			continue
+		}
+
+		//解析符号的全局性局部性，避免符号冲突
+		glb := false
+
+		if label.Section == ".text" { // 代码段
+			if name == "@str2long" || name == "@procBuf" {
+				glb = true
+			} else if name[0] != '@' { //不带@符号的，都是定义的函数或者_start,全局的
+				glb = true
+			}
+		} else if label.Section == ".data" { // 数据段
+			if strings.HasPrefix(name, "@str_") { // @str_开头符号
+				glb = !(name[5] >= '0' && name[5] <= '9') //不是紧跟数字，全局str
+			} else { // 其他类型全局符号
+				glb = true
+			}
+		} else {
+			glb = label.Type == UNDEFINED_LABEL || label.Type == EXTERNAL_LABEL
+		}
+
+		sym := elf.Elf32_Sym{
+			Name:  0,
+			Value: uint32(label.Addr),
+			Size:  uint32(label.Times * label.Size * label.ContLen),
+		}
+		if glb { // 统一记作无类型符号，和链接器lit协议保持一致
+			sym.Info = elf.ST_INFO(elf.STB_GLOBAL, elf.STT_NOTYPE) //全局符号
+		} else {
+			sym.Info = elf.ST_INFO(elf.STB_LOCAL, elf.STT_NOTYPE) //局部符号，避免名字冲突
+		}
+
+		if label.Type == UNDEFINED_LABEL || label.Type == EXTERNAL_LABEL {
+			sym.Shndx = 0 // STN_UNDEF
+		} else {
+			sym.Shndx = uint16(target.GetSegIndex(label.Section))
+		}
+		target.AddSym(label.Name, &sym)
+	}
+
+	// ---- 添加符号表 ToDo 需要先构建符号表
+	offset += 9 * int(target.Ehdr.Shentsize) // 什么意思？符号表表偏移 = 8个段+空段，段表字符串表偏移
 	// .symtab,sh_link 代表.strtab索引，默认在.symtab之后,sh_info不能确定
 	symtabSize := (len(target.SymNames)) * 16 // 每个符号16字节
 	symtab := elf.NewShdr(elf.SHT_SYMTAB, 0, offset, symtabSize)
