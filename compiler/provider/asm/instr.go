@@ -111,6 +111,8 @@ func GenXop(opcode byte, opr *OperandRecord, w io.Writer, offset *int, relocate 
 		if opr.Length > 0 {
 			WriteValue(w, offset, int(opr.Value), opr.Length)
 		}
+	} else if opr.Length > 0 {
+		WriteValue(w, offset, int(opr.Value), opr.Length)
 	}
 
 	//if opr.Length == 0 {
@@ -158,8 +160,8 @@ func Gen2op(op Token, src, dest *OperandRecord, w io.Writer, offset *int, reloca
 		opc, length := GetOpcodeForReg(op, opcode, byte(dest.Value)) // todo cmp 指令不正确
 		WriteBytes(w, offset, opc, length)
 		// 可能的重定位位置 mov eax,@buffer,也有可能是mov eax,@buffer_len，就不许要重定位，因为是宏
-		relocate(src.RelLabel, R_386_32)         // 这里记录一个重定位（如果有）
-		WriteValue(w, offset, int(src.Value), 4) // todo 长度为寄存器宽度 一定要按照长度输出立即数
+		relocate(src.RelLabel, R_386_32)              // 这里记录一个重定位（如果有）
+		WriteValue(w, offset, int(src.Value), regLen) // todo 按立即数宽度输出
 	} else if src.Type == OPRTP_IMM && dest.Type == OPRTP_REG { // 立即数到内存
 		// todo 暂时没有实现
 	} else if src.Type == OPRTP_MEM { // 内存到寄存器

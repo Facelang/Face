@@ -196,7 +196,6 @@ func (p *parser) opr() *OperandRecord {
 	case NUMBER:
 		opr.Type = OPRTP_IMM
 		opr.Value = int64(p.number())
-		opr.Length = 4 // 代表 4*8
 	case IDENT: // 变量名 立即数
 		opr.Type = OPRTP_IMM
 		opr.RelLabel = p.id()        // 记录重定位，代码生成时需要替换
@@ -209,7 +208,6 @@ func (p *parser) opr() *OperandRecord {
 		p.require(NUMBER)
 		opr.Type = OPRTP_IMM
 		opr.Value = int64(-p.number())
-		opr.Length = 4 // 代表 4*8
 	default: // 寄存器操作数 todo 双寄存器需要特殊处理
 		regLen := p.reg(token)
 		opr.Type = OPRTP_REG

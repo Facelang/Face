@@ -65,12 +65,13 @@ func FileWrite(file *File, target string) error {
 				continue
 			}
 			var oldBlock *Block = nil
+			instPad := [1]byte{0x90}
 			for i := 0; i < len(seg.Blocks); i++ {
 				b := seg.Blocks[i]
 				if oldBlock != nil {
 					padnum = b.Offset - (oldBlock.Offset + oldBlock.Size)
 					for ; padnum != 0; padnum-- { //填充
-						_ = w.Write(pad)
+						_ = w.Write(instPad)
 					}
 				}
 				oldBlock = b
@@ -79,13 +80,13 @@ func FileWrite(file *File, target string) error {
 		}
 	} else {
 		// 【数据段】最重要的部分
-		instPad := [1]byte{0x90}
 		var prev *ProgSeg = nil
+		pad := [1]byte{0}
 		for _, seg := range file.ProgSegList {
 			if prev != nil {
 				padnum := seg.Offset - (prev.Offset + prev.Size)
 				for ; padnum != 0; padnum-- { //填充
-					_ = w.Write(instPad)
+					_ = w.Write(pad)
 				}
 			}
 			if seg.Name == ".bss" {

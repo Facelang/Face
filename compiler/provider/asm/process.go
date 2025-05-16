@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -105,8 +106,10 @@ func (proc *ProcessTable) PushInstr(instr *InstrRecord) {
 // AddLabel 添加符号到符号表; 一共三处，equ 常量 仅数字 NewRecWithEqu， 变量 NewRecWithData,  代码段 TextLabel
 func (proc *ProcessTable) AddLabel(name string, rec *LabelRecord) {
 	rec.Name = name // 缓存一次，减少后续查找名字
-	rec.Addr = proc.Section.Offset
-	rec.Section = proc.Section.Name
+	if rec.Type == TEXT_LABEL || rec.Type == LOCAL_LABEL {
+		rec.Addr = proc.Section.Offset
+		rec.Section = proc.Section.Name
+	}
 
 	// 更新地址, 除了具体的变量定义，这里都是 0， 没有变化
 	proc.Section.Offset += rec.Times * rec.Size * rec.ContLen
@@ -245,9 +248,56 @@ func (proc *ProcessTable) LocalRel() error {
 		//	proc.RelocateRecList[i] = nil // 移除重定位表
 		//}
 	}
+	//f, _ := elf.ReadElf("example/hello.o")
+	//dest := f.ReadDataBy(".text")
+	//Check(dest, text, "代码段")
+
 	proc.InstrBuff.Reset()
 	proc.InstrBuff.Write(text)
 	return nil
+}
+
+//func Check(src, dest []byte, name string) {
+//	for i, ch := range src {
+//		if len(dest) <= i {
+//			fmt.Printf("错误：[0x%X],  两文件内容长度不一致: [%d, %d]", i, len(src), len(dest))
+//			return
+//		}
+//		if ch != dest[i] {
+//			fmt.Printf("错误:[0x%X, %d]（%X(%d) != %X(%d)）", i, i, ch, ch, dest[i], dest[i])
+//
+//			for i2, b := range src[i-4 : i+16] {
+//				fmt.Printf("%d: [%d, %d] \n", i+i2-4, b, dest[i+i2-4])
+//			}
+//			fmt.Printf("\n")
+//			return
+//		}
+//	}
+//
+//	fmt.Printf("校验完成，[%s]完全一致！\n", name)
+//}
+
+func (proc *ProcessTable) GetData() ([]byte, int) {
+	dataList := make([]*LabelRecord, 0)
+	for _, label := range proc.LabelRecList {
+		if label.Section == ".data" && label.Type == LOCAL_LABEL {
+			dataList = append(dataList, label)
+		}
+	}
+	sort.Slice(dataList, func(i, j int) bool {
+		return dataList[i].Addr < dataList[j].Addr
+	})
+	// 排序
+
+	dataBuffer := bytes.NewBuffer(nil)
+	for _, label := range dataList {
+		for t := 0; t < label.Times; t++ {
+			for n := 0; n < label.ContLen; n++ {
+				dataBuffer.Write(ValueBytes(label.Cont[n], label.Size))
+			}
+		}
+	}
+	return dataBuffer.Bytes(), dataBuffer.Len()
 }
 
 // ExportElf 文件组装 生成 ELF 可执行文件 todo 内部重定位应该在组装文件之前
@@ -276,17 +326,8 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 					},
 				},
 			)
-		case ".data":
-			dataBuffer := bytes.NewBuffer(nil)
-			for _, label := range proc.LabelRecList {
-				if label.Section == ".data" && label.Type == LOCAL_LABEL {
-					for t := 0; t < label.Times; t++ {
-						for n := 0; n < label.ContLen; n++ {
-							dataBuffer.Write(ValueBytes(label.Cont[n], label.Size))
-						}
-					}
-				}
-			}
+		case ".data": // 添加数据，要根据地址的先后顺序来
+			data, DataLen := proc.GetData()
 			target.ProgSegList = append(
 				target.ProgSegList,
 				&elf.ProgSeg{
@@ -295,8 +336,8 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 					Size:   uint32(section.Length),
 					Blocks: []*elf.Block{
 						{
-							Data: dataBuffer.Bytes(),
-							Size: uint32(dataBuffer.Len()),
+							Data: data,
+							Size: uint32(DataLen),
 						},
 					},
 				},
@@ -391,6 +432,8 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 	shstrIndex[".text"] = index + 4 // 一个字符串，两处使用，节省空间
 	index += 10
 
+	shstrIndex[""] = index - 1
+
 	// .rel.data
 	shstrIndex[".rel.data"] = index
 	copy(target.Shstrtab[index:], ".rel.data\x00")
@@ -418,7 +461,7 @@ func (proc *ProcessTable) ExportElf() *elf.File {
 	copy(target.Shstrtab[index:], ".strtab\x00")
 	index += 8
 
-	shstrIndex[""] = index - 1
+	//shstrIndex[""] = index - 1
 
 	// .shstrtab, 紧跟 .text.data.bss 段
 	shstrTab := elf.NewShdr(elf.SHT_STRTAB, 0, offset, target.ShstrtabSize)

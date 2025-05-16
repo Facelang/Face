@@ -2,15 +2,14 @@ package asm
 
 import (
 	"fmt"
-	"strings"
 )
 
 // Program todo 应该支持多个文件同时解析！ 暂时支持一个
 func Program(src string) error {
 	target := fmt.Sprintf("%s.o", src)
-	if strings.HasSuffix(src, ".s") {
-		target = fmt.Sprintf("%s.o", src[:len(src)-2])
-	}
+	//if strings.HasSuffix(src, ".s") {
+	//	target = fmt.Sprintf("%s.o", src[:len(src)-2])
+	//}
 
 	// todo 流程需要进一步优化
 	// 解析 -> 校验(略) -> 代码生成 -> elf 文件组装
