@@ -4,16 +4,39 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8eca8ccc-442b-49c1-9bbd-e0d902f9edd6" name="更改" comment="最终测试对比">
+    <list default="true" id="8eca8ccc-442b-49c1-9bbd-e0d902f9edd6" name="更改" comment="汇编器，连接器 完全编译成功！">
+      <change afterPath="$PROJECT_DIR$/compiler/command/asm/internal/lexer.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/compiler/command/asm/internal/parser.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/compiler/command/asm/main.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/compiler/command/link/main.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/compiler/common/reader/base.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/compiler/common/reader/tokenizer.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/target/elf/file.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/target/elf/file.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/common.o" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/common.t" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/common.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hello" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/hello.o" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sample/main.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/simple/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/simple/go.mod" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="GOROOT" url="file://D:/ProgramDev/Go/1.20.14/main" />
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Go Application" />
+        <option value="Go File" />
+      </list>
+    </option>
+  </component>
+  <component name="GOROOT" url="file://$USER_HOME$/sdk/go1.24.3" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
@@ -28,7 +51,12 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "Go 构建.go build face-lang.executor": "Debug",
+    "DefaultGoTemplateProperty": "Go File",
+    "Go 构建.go build example (1).executor": "Run",
+    "Go 构建.go build example.executor": "Run",
+    "Go 构建.go build face-lang.executor": "Run",
+    "Go 构建.go build face-lang/example.executor": "Run",
+    "Go 构建.go build main.go.executor": "Run",
     "RunOnceActivity.GoLinterPluginOnboarding": "true",
     "RunOnceActivity.GoLinterPluginStorageMigration": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -40,21 +68,35 @@
     "git-widget-placeholder": "master",
     "go.import.settings.migrated": "true",
     "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "E:/ProgramData/Windows/Desktop/Projects/Go/face-lang/example",
+    "last_opened_file_path": "E:/ProgramData/Windows/Desktop/Projects/Go/face-lang/compiler/command/asm",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "run.configurations.included.in.services": "true",
     "settings.editor.selected.configurable": "go.vgo",
     "two.files.diff.last.used.file": "E:/ProgramData/Windows/Desktop/Projects/Go/face-lang/example/ass/common.o"
+  },
+  "keyToStringList": {
+    "stardust.markdown.MarkdownSplitEditorSuppressor:keyList": []
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\compiler\command\asm" />
       <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\example" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\library" />
+      <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\compiler\cmd" />
       <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\example\cit" />
     </key>
+  </component>
+  <component name="RunDashboard">
+    <option name="configurationTypes">
+      <set>
+        <option value="GoApplicationRunConfiguration" />
+      </set>
+    </option>
   </component>
   <component name="RunManager">
     <configuration name="go build face-lang" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
@@ -96,7 +138,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="最终测试对比" />
-    <option name="LAST_COMMIT_MESSAGE" value="最终测试对比" />
+    <MESSAGE value="汇编器，连接器 完全编译成功！" />
+    <option name="LAST_COMMIT_MESSAGE" value="汇编器，连接器 完全编译成功！" />
   </component>
   <component name="VgoProject">
     <environment>
@@ -116,24 +159,44 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
-          <line>523</line>
+          <line>566</line>
           <option name="timeStamp" value="54" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/compiler/target/elf/writer.go</url>
-          <line>122</line>
+          <line>123</line>
           <option name="timeStamp" value="62" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/provider/asm/main.go</url>
-          <line>27</line>
-          <option name="timeStamp" value="66" />
+          <url>file://$PROJECT_DIR$/compiler/target/elf/writer.go</url>
+          <line>111</line>
+          <option name="timeStamp" value="68" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
+          <line>252</line>
+          <option name="timeStamp" value="72" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
+          <line>286</line>
+          <option name="timeStamp" value="81" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
+          <line>291</line>
+          <option name="timeStamp" value="82" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/main.go</url>
+          <line>13</line>
+          <option name="timeStamp" value="87" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
     <watches-manager>
       <configuration name="GoApplicationRunConfiguration">
-        <watch expression="*(*&quot;uint8&quot;)(1374390837377)" />
+        <watch expression="*(*&quot;uint8&quot;)(1374390837377)" language="go" />
       </configuration>
     </watches-manager>
   </component>
