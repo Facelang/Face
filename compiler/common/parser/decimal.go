@@ -1,135 +1,13 @@
-package internal
+package parser
 
 import (
 	"fmt"
-	"log"
-	"os"
-	"unicode"
 
 	"github.com/facelang/face/compiler/common/reader"
 )
 
-// Whitespace 对比 map, switch 位掩码 比较效率最高
-const Whitespace = 1<<'\t' | 1<<'\n' | 1<<'\r' | 1<<' '
-
-// 数字类型常量
-const (
-	Int   = iota // 整数
-	Float        // 浮点数
-)
-
-type lexer struct {
-	reader *reader.Reader
-	token  reader.Token
-	ident  string
-}
-
-func (lex *lexer) NextToken() reader.Token {
-	ch, chw := lex.reader.ReadRune()
-	if chw == 0 {
-		return reader.EOF
-	}
-
-redo:
-	// skip white space
-	for Whitespace&(1<<ch) != 0 {
-		ch, chw = lex.reader.ReadRune()
-	}
-
-	if chw == 0 {
-		return reader.EOF
-	}
-
-	lex.ident = ""
-
-	// start collecting token text
-	lex.reader.TextReady()
-
-	if '0' <= ch && ch <= '9' { // 数字
-		return DigitVal(lex, ch)
-	}
-
-	if CheckIdent(ch, 0) { // 符号
-		for i := 1; CheckIdent(ch, i); i++ {
-			ch, chw = lex.reader.ReadRune()
-		}
-		lex.ident = lex.reader.ReadText()
-		return reader.IDENT
-	}
-
-	// determine token value
-	tok := ch
-	switch {
-	case s.isIdentRune(ch, 0):
-		if s.Mode&ScanIdents != 0 {
-			tok = Ident
-			ch = s.scanIdentifier()
-		} else {
-			ch = s.next()
-		}
-	case isDecimal(ch):
-		if s.Mode&(ScanInts|ScanFloats) != 0 {
-			tok, ch = s.scanNumber(ch, false)
-		} else {
-			ch = s.next()
-		}
-	default:
-		switch ch {
-		case EOF:
-			break
-		case '"':
-			if s.Mode&ScanStrings != 0 {
-				s.scanString('"')
-				tok = String
-			}
-			ch = s.next()
-		case '\'':
-			if s.Mode&ScanChars != 0 {
-				s.scanChar()
-				tok = Char
-			}
-			ch = s.next()
-		case '.':
-			ch = s.next()
-			if isDecimal(ch) && s.Mode&ScanFloats != 0 {
-				tok, ch = s.scanNumber(ch, true)
-			}
-		case '/':
-			ch = s.next()
-			if (ch == '/' || ch == '*') && s.Mode&ScanComments != 0 {
-				if s.Mode&SkipComments != 0 {
-					s.tokPos = -1 // don't collect token text
-					ch = s.scanComment(ch)
-					goto redo
-				}
-				ch = s.scanComment(ch)
-				tok = Comment
-			}
-		case '`':
-			if s.Mode&ScanRawStrings != 0 {
-				s.scanRawString()
-				tok = RawString
-			}
-			ch = s.next()
-		default:
-			ch = s.next()
-		}
-	}
-
-	// end of token text
-	s.tokEnd = s.srcPos - s.lastCharLen
-
-	s.ch = ch
-	return tok
-}
-
-func CheckIdent(ch rune, i int) bool {
-	return ch == '_' || unicode.IsLetter(ch) ||
-		unicode.IsDigit(ch) && i > 0 // 第一个字符必须是字母或下划线
-}
-
 // 这是一个数字的解析器
-func DigitVal(lex *lexer, first rune) reader.Token {
+func Decimal(r *reader.Reader, first rune) reader.Token {
 	base := 10         // 数字基数
 	prefix := byte(0)  // 前缀：0(十进制), '0'(八进制), 'x'(十六进制), 'o'(八进制), 'b'(二进制)
 	digsep := 0        // 位标志：bit 0: 有数字, bit 1: 有下划线
@@ -142,18 +20,18 @@ func DigitVal(lex *lexer, first rune) reader.Token {
 
 	tok = reader.INT
 	if first == '0' {
-		ch, _ = lex.reader.ReadByte()
+		ch, _ = r.ReadByte()
 		switch ch {
 		case '.': // 小数
 			tok = reader.FLOAT
 		case 'x', 'X':
-			ch, _ = lex.reader.ReadByte()
+			ch, _ = r.ReadByte()
 			base, prefix = 16, 'x'
 		case 'o', 'O':
-			ch, _ = lex.reader.ReadByte()
+			ch, _ = r.ReadByte()
 			base, prefix = 8, 'o'
 		case 'b', 'B':
-			ch, _ = lex.reader.ReadByte()
+			ch, _ = r.ReadByte()
 			base, prefix = 2, 'b'
 		default:
 			base, prefix = 8, '0'
@@ -187,10 +65,10 @@ func DigitVal(lex *lexer, first rune) reader.Token {
 			panic(fmt.Sprintf("%q exponent requires hexadecimal mantissa", ch))
 		}
 
-		ch, _ = lex.reader.ReadByte()
+		ch, _ = r.ReadByte()
 		tok = reader.FLOAT
 		if ch == '+' || ch == '-' {
-			ch, _ = lex.reader.ReadByte()
+			ch, _ = r.ReadByte()
 		}
 
 		ch, ds = digits(lex, ch, 10, nil) // 指数后面的值， 只能十进制
@@ -207,14 +85,14 @@ func DigitVal(lex *lexer, first rune) reader.Token {
 	}
 
 	// 收集数字文本
-	lex.reader.TextReady()
-	lex.token.Text = lex.reader.ReadText()
+	r.TextReady()
+	lex.token.Text = r.ReadText()
 	lex.token.Kind = reader.NUMBER
 	return lex.token
 }
 
 // 辅助函数：解析数字序列
-func digits(lex *lexer, ch byte, base int, invalid *byte) (byte, int) {
+func digits(r *reader.Reader, ch byte, base int, invalid *byte) (byte, int) {
 	ds := 0 // 位标志：bit 0: 有数字, bit 1: 有下划线
 	for {
 		if ch == '.' { // 不是小数点，直接跳出循环
@@ -222,7 +100,7 @@ func digits(lex *lexer, ch byte, base int, invalid *byte) (byte, int) {
 		}
 		if ch == '_' {
 			ds |= 2 // 记录下划线
-			ch, _ = lex.reader.ReadByte()
+			ch, _ = r.ReadByte()
 			continue
 		}
 		d := digitVal(ch) // 获取字符的数值
@@ -230,8 +108,8 @@ func digits(lex *lexer, ch byte, base int, invalid *byte) (byte, int) {
 			*invalid = ch // 记录无效字符
 			break         // 跳出循环
 		}
-		ds |= 1                       // 记录数字
-		ch, _ = lex.reader.ReadByte() // 读取下一个字符
+		ds |= 1              // 记录数字
+		ch, _ = r.ReadByte() // 读取下一个字符
 	}
 	return ch, ds
 }
@@ -263,15 +141,4 @@ func litname(prefix rune) string {
 	default:
 		return "decimal"
 	}
-}
-
-// NewLexer returns a lexer for the named file and the given link context.
-func NewLexer(name string) TokenReader { // 封装后的读取器
-	input := NewInput(name)
-	fd, err := os.Open(name)
-	if err != nil {
-		log.Fatalf("%s\n", err)
-	}
-	input.Push(NewTokenizer(name, fd, fd))
-	return input
 }

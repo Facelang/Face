@@ -1,12 +1,10 @@
-module face-lang
+module github.com/facelang/face
 
-go 1.23.0
-
-toolchain go1.24.3
-
-require github.com/olekukonko/tablewriter v0.0.5
+go 1.24
 
 require (
-	github.com/mattn/go-runewidth v0.0.9 // indirect
-	golang.org/x/arch v0.17.0 // indirect
+	github.com/olekukonko/tablewriter v0.0.5
+	golang.org/x/arch v0.17.0
 )
+
+require github.com/mattn/go-runewidth v0.0.9 // indirect

@@ -4,24 +4,13 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8eca8ccc-442b-49c1-9bbd-e0d902f9edd6" name="更改" comment="汇编器，连接器 完全编译成功！">
-      <change afterPath="$PROJECT_DIR$/compiler/command/asm/internal/lexer.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compiler/command/asm/internal/parser.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compiler/command/asm/main.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compiler/command/link/main.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compiler/common/reader/base.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compiler/common/reader/tokenizer.go" afterDir="false" />
+    <list default="true" id="8eca8ccc-442b-49c1-9bbd-e0d902f9edd6" name="更改" comment="重新调整了项目结构">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/common.o" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/common.t" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/common.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/command/asm/internal/lexer.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/command/asm/internal/lexer.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/common/reader/base.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/common/reader/base.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/common/reader/tokenizer.go" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hello" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/hello.o" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sample/main.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/simple/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/simple/go.mod" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -49,37 +38,37 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultGoTemplateProperty": "Go File",
-    "Go 构建.go build example (1).executor": "Run",
-    "Go 构建.go build example.executor": "Run",
-    "Go 构建.go build face-lang.executor": "Run",
-    "Go 构建.go build face-lang/example.executor": "Run",
-    "Go 构建.go build main.go.executor": "Run",
-    "RunOnceActivity.GoLinterPluginOnboarding": "true",
-    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.automatic.dependencies.download": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "master",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "E:/ProgramData/Windows/Desktop/Projects/Go/face-lang/compiler/command/asm",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "run.configurations.included.in.services": "true",
-    "settings.editor.selected.configurable": "go.vgo",
-    "two.files.diff.last.used.file": "E:/ProgramData/Windows/Desktop/Projects/Go/face-lang/example/ass/common.o"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultGoTemplateProperty&quot;: &quot;Go File&quot;,
+    &quot;Go 构建.go build example (1).executor&quot;: &quot;Run&quot;,
+    &quot;Go 构建.go build example.executor&quot;: &quot;Run&quot;,
+    &quot;Go 构建.go build face-lang.executor&quot;: &quot;Run&quot;,
+    &quot;Go 构建.go build face-lang/example.executor&quot;: &quot;Run&quot;,
+    &quot;Go 构建.go build main.go.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.GoLinterPluginOnboarding&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.automatic.dependencies.download&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/ProgramData/Windows/Desktop/Projects/Go/face-lang/compiler/command/asm&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.configurations.included.in.services&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;go.vgo&quot;,
+    &quot;two.files.diff.last.used.file&quot;: &quot;E:/ProgramData/Windows/Desktop/Projects/Go/face-lang/example/ass/common.o&quot;
   },
-  "keyToStringList": {
-    "stardust.markdown.MarkdownSplitEditorSuppressor:keyList": []
+  &quot;keyToStringList&quot;: {
+    &quot;stardust.markdown.MarkdownSplitEditorSuppressor:keyList&quot;: []
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\compiler\command\asm" />
@@ -136,10 +125,52 @@
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="OPEN_GENERIC_TABS">
+      <map>
+        <entry key="000db24b-fcfa-4aa7-a54a-a2a97a04d9b4" value="TOOL_WINDOW" />
+      </map>
+    </option>
+    <option name="TAB_STATES">
+      <map>
+        <entry key="000db24b-fcfa-4aa7-a54a-a2a97a04d9b4">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="最终测试对比" />
     <MESSAGE value="汇编器，连接器 完全编译成功！" />
-    <option name="LAST_COMMIT_MESSAGE" value="汇编器，连接器 完全编译成功！" />
+    <MESSAGE value="重新调整了项目结构" />
+    <option name="LAST_COMMIT_MESSAGE" value="重新调整了项目结构" />
   </component>
   <component name="VgoProject">
     <environment>
