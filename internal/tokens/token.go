@@ -8,5 +8,7 @@ const (
 	IDENT
 	INT
 	FLOAT
+	Char
 	STRING
+	COMMENT
 )

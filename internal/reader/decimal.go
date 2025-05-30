@@ -1,16 +1,13 @@
-package parser
+package reader
 
 import (
 	"fmt"
+	"github.com/facelang/face/internal/tokens"
 	"strings"
-
-	"github.com/facelang/face/compiler/common/tokens"
-
-	"github.com/facelang/face/compiler/common/reader"
 )
 
 // Decimal 这是一个数字的解析器
-func Decimal(r *reader.Reader, first byte) (tokens.Token, string) {
+func Decimal(r *Reader, first rune) (tokens.Token, string) {
 	defer func() {
 		r.GoBack() // 最后一个符号需要回退
 	}()
@@ -21,7 +18,7 @@ func Decimal(r *reader.Reader, first byte) (tokens.Token, string) {
 
 	// 整数部分
 	ds := byte(0)
-	ch := first
+	ch := byte(first)
 	tok := tokens.INT
 
 	if first == '0' {
@@ -102,7 +99,7 @@ func Decimal(r *reader.Reader, first byte) (tokens.Token, string) {
 }
 
 // 辅助函数：解析数字序列
-func digits(r *reader.Reader, ch byte, base int) (byte, byte) {
+func digits(r *Reader, ch byte, base int) (byte, byte) {
 	ds := byte(0) // 位标志：bit 0: 有数字, bit 1: 有下划线 bit 3: 异常
 	for {
 		if ch == '.' { // 不是小数点，直接跳出循环

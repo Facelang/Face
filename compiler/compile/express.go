@@ -1,4 +1,4 @@
-package factory
+package compile
 
 // <exp>		->	<aloexp><exptail>
 // 目前只支持 赋值, 比较， 加减， 乘除

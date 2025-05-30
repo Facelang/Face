@@ -1,12 +1,11 @@
 package main
 
 import (
-	"face-lang/compiler/command/asm/internal"
-	"face-lang/compiler/provider/asm"
-	"face-lang/compiler/target/elf"
 	"flag"
 	"fmt"
-	"log"
+	"github.com/facelang/face/compiler/assemble/internal"
+	"github.com/facelang/face/compiler/provider/asm"
+	"github.com/facelang/face/internal/os/elf"
 	"os"
 	"path/filepath"
 	"strings"

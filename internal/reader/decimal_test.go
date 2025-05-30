@@ -1,10 +1,8 @@
-package parser
+package reader
 
 import (
+	"github.com/facelang/face/internal/tokens"
 	"testing"
-
-	"github.com/facelang/face/compiler/common/reader"
-	"github.com/facelang/face/compiler/common/tokens"
 )
 
 func TestDecimal(t *testing.T) {
@@ -54,7 +52,7 @@ func TestDecimal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 创建 reader
-			r := reader.BytesReader([]byte(tt.input))
+			r := BytesReader([]byte(tt.input))
 			first, _ := r.ReadByte()
 
 			defer func() {
