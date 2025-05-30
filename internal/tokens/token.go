@@ -11,4 +11,5 @@ const (
 	Char
 	STRING
 	COMMENT
+	RETURN
 )
