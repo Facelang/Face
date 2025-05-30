@@ -4,13 +4,13 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8eca8ccc-442b-49c1-9bbd-e0d902f9edd6" name="更改" comment="重新调整了项目结构">
+    <list default="true" id="8eca8ccc-442b-49c1-9bbd-e0d902f9edd6" name="更改" comment="-">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.vscode/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/.vscode/settings.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compiler/command/asm/internal/lexer.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/command/asm/internal/lexer.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/common/reader/base.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/common/reader/base.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compiler/common/reader/tokenizer.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/common/parser/decimal.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/common/parser/decimal.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compiler/common/reader/token.go" beforeDir="false" afterPath="$PROJECT_DIR$/compiler/common/tokens/token.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -75,6 +75,7 @@
       <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\example" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/compiler/common/tokens" />
       <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\library" />
       <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\compiler\cmd" />
       <recent name="E:\ProgramData\Windows\Desktop\Projects\Go\face-lang\example\cit" />
@@ -187,36 +188,6 @@
           <url>file://$PROJECT_DIR$/compiler/provider/asm/program.go</url>
           <line>25</line>
           <option name="timeStamp" value="19" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
-          <line>566</line>
-          <option name="timeStamp" value="54" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/target/elf/writer.go</url>
-          <line>123</line>
-          <option name="timeStamp" value="62" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/target/elf/writer.go</url>
-          <line>111</line>
-          <option name="timeStamp" value="68" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
-          <line>252</line>
-          <option name="timeStamp" value="72" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
-          <line>286</line>
-          <option name="timeStamp" value="81" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/compiler/provider/asm/process.go</url>
-          <line>291</line>
-          <option name="timeStamp" value="82" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/main.go</url>

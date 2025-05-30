@@ -1,3 +1,15 @@
-**/.**
-.idea
-!.gitignore
+.idea/
+.vscode/
+.DS_Store
+
+**/go.sum
+**/*.exe
+**/*.exe~
+**/*.dll
+**/*.so
+**/*.dylib
+**/*.exe
+
+# 编译输出
+/bin/
+/pkg/

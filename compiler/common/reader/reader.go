@@ -39,6 +39,12 @@ func (r *Reader) GetFile() *FileInfo {
 	}
 }
 
+// GoBack 回退一个字符
+func (r *Reader) GoBack() {
+	r.ch = 0
+	r.chw = 0
+}
+
 // ReadByte 返回值是否为 eof
 func (r *Reader) ReadByte() (byte, bool) {
 	if r.chw > 0 { // 文件位置信息记录更新， 下一个字符开始 = 上一个字符结束 + 上一个字符宽度
@@ -131,5 +137,20 @@ func FileReader(file string) *Reader {
 
 	r.buff = buff
 	r.e = len(r.buff)
+	return r
+}
+
+func BytesReader(input []byte) *Reader {
+	r := &Reader{
+		FileInfo: &FileInfo{
+			Filename: "Bytes",
+			Col:      0,
+			Line:     0,
+			Offset:   0,
+		},
+	}
+
+	r.buff = input
+	r.e = len(input)
 	return r
 }

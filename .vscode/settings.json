@@ -1,6 +1,6 @@
 {
-    "go.goroot": "D:\\ProgramDev\\SDK\\go1.24.3",
-    "go.gopath": "D:\\ProgramDev\\SDK\\go1.24.3\\.go",
+    "go.goroot": "/Users/marshal/sdk/go1.24.3",
+    "go.gopath": "/Users/marshal/go",
     "gopls": {
         "ui.diagnostic.analyses": {
             "unusedparams": true,
@@ -12,10 +12,10 @@
         "ui.completion.usePlaceholders": true,
         "verboseOutput": false
     },
-    "terminal.integrated.env.windows": {
-        "PATH": "D:\\ProgramDev\\SDK\\go1.24.3\\bin;${env:PATH}",
-        "GOROOT": "D:\\ProgramDev\\SDK\\go1.24.3",
-        "GOPATH": "D:\\ProgramDev\\SDK\\go1.24.3\\.go",
+    "terminal.integrated.env.osx": {
+        "PATH": "/Users/marshal/sdk/go1.24.3/bin",
+        "GOROOT": "/Users/marshal/sdk/go1.24.3",
+        "GOPATH": "/Users/marshal/go",
         "GOPROXY": "https://goproxy.cn,direct"
     },
     "go.useLanguageServer": true,
@@ -25,5 +25,8 @@
             "source.organizeImports": "always"
         }
     },
-    "window.zoomLevel": 1
+    "window.zoomLevel": 1,
+    "go.experiments": {
+        "testExplorer": true
+    }
 }
