@@ -77,11 +77,9 @@ face-lang/
 3. 完善项目文档
 4. 分享使用经验
 
-## 📝 学习资源
+## 📝 项目笔记
 
-- [编译器原理](https://en.wikipedia.org/wiki/Compiler)
-- [汇编语言基础](https://en.wikipedia.org/wiki/Assembly_language)
-- [ELF 文件格式](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)
+TODO
 
 ## 🔮 未来规划
 
