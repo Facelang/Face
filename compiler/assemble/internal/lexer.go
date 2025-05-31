@@ -7,7 +7,7 @@ import (
 )
 
 // Whitespace 对比 map, switch 位掩码 比较效率最高, 忽略 \n
-const Whitespace = 1<<'\t' | 1<<'\r' | 1<<' '
+const Whitespace = 1<<'\t' | 1<<'\n' | 1<<'\r' | 1<<' '
 
 type lexer struct {
 	reader *reader.Reader
@@ -49,8 +49,6 @@ func (lex *lexer) NextToken() tokens.Token {
 
 	// determine token value
 	switch ch {
-	case '\n':
-		return tokens.RETURN
 	case '"':
 		ident, _ := reader.String(lex.reader, '"')
 		lex.ident = ident

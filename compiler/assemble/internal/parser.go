@@ -41,55 +41,23 @@ type Parser struct {
 	errorWriter   io.Writer
 }
 
-func (p *Parser) line() *Program {
-	// 空行， 注释 跳过
-	// 标签行： 普通标签(label:) 局部标签(.L1:)
-	// 指令行： 指令符号 操作数, ...
-	// 伪指令行： 伪指令 参数, ...
-	// 其它特殊情况： 标签 + 伪指令可以在一行（比如数据定义）
-
+func (p *Parser) prefix() (string, bool) {
 	var token tokens.Token
 	for {
 		token = p.lex.NextToken()
 		if token == tokens.EOF {
-			return nil // todo
+			return "", false
 		}
-		if token != tokens.COMMENT && token != tokens.RETURN {
+		if token != tokens.COMMENT {
 			break
 		}
 	}
 
-	word := p.lex.ident
-	if token == tokens.DOT { // . 开始， 伪指令， 或者符号
-		token = p.lex.NextToken()
+	if token == tokens.IDENT {
+		panic(fmt.Errorf("unexpected token %s", "IDENT"))
 	}
 
-	program := &Program{Type: Unknown}
-	if token == tokens.IDENT { // 符号， 或者指令
-		program.Name = p.lex.ident
-		// 先判断是否为指令
-		i, present := p.arch.InstrTable[program.Name] // 这里取指令操作码
-		if present {
-			p.instruction(i, word, cond, operands) // 最重要！处理指令
-			continue
-		}
-
-		token = p.lex.NextToken()
-		if token == ':' { // label
-			program.Type = Label
-			// todo 需要记录符号位置，段信息
-		} else {
-			program.Type = Instr
-		}
-		// 判断是否是指令
-		// 再读一个符号
-	} else if token == tokens.DOT {
-
-	} else {
-
-	}
-
-	return program
+	return p.lex.ident, true
 }
 
 /*
@@ -104,6 +72,16 @@ func (p *Parser) pseudo(word string, args []LineToken) *Program {
 	switch word {
 	case ".section": // 分段
 
+	case ".global":
+
+	case ".local":
+
+	case ".type":
+
+	case ".size":
+
+	case ".align":
+
 	case "DATA":
 		p.asmData(operands)
 	case "FUNCDATA":
@@ -116,7 +94,7 @@ func (p *Parser) pseudo(word string, args []LineToken) *Program {
 		p.asmPCAlign(operands)
 	case "TEXT":
 		p.asmText(operands) // 函数申明
-	default:
+	default: // 处理符号声明
 		if len(args) > 0 && args[0].LiteralVal == ":" {
 			// 说明是符号
 		}
