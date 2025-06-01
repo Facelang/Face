@@ -1,8 +1,8 @@
-package compile
+package internal
 
 import (
 	"fmt"
-	"github.com/facelang/face/compiler/compile/internal"
+	"github.com/facelang/face/compiler/compile"
 	"os"
 	"strconv"
 )
@@ -34,13 +34,13 @@ type ProgFunc struct {
 	hadret    int        // 记录是否含有返回语句
 }
 
-func (fn *ProgFunc) addArg(gen *codegen, v *ProgDec) {
+func (fn *ProgFunc) addArg(gen *compile.codegen, v *ProgDec) {
 	fn.args = append(fn.args, v.kind)
 	fn.addLocalVar(gen, v) // 把参数当作变量临时存储在局部列表里边
 }
 
 // 添加一个局部变量
-func (fn *ProgFunc) addLocalVar(gen *codegen, v *ProgDec) {
+func (fn *ProgFunc) addLocalVar(gen *compile.codegen, v *ProgDec) {
 	//局部变量定义的缓冲机制，defined==1之前，是不写入符号表的，因为此时还不能确定是不是函数定义
 
 	if fn.defined == 0 { //还是参数声明
@@ -70,7 +70,7 @@ func NumberVal(input string) int {
 	return r
 }
 
-func (fn *ProgFunc) createTempVar(p *internal.parser, kind, val string, hasVal bool, vn *int) *ProgDec {
+func (fn *ProgFunc) createTempVar(p *parser, kind, val string, hasVal bool, vn *int) *ProgDec {
 	// 创建临时变量记录
 	temp := &ProgDec{kind: kind}
 	switch kind {
@@ -144,7 +144,7 @@ type ProgTable struct {
 	realArgList []*ProgDec           // 函数调用的实参列表，用于检查参数调用匹配和实参代码生成
 }
 
-func (t *ProgTable) addFn(gen *codegen, f *ProgFunc) {
+func (t *ProgTable) addFn(gen *compile.codegen, f *ProgFunc) {
 	if _, ok := t.fnRecList[f.name]; ok {
 		// TODO 判断已定义函数，和新的函数是否一直（参数数量，类型）
 		// 为了简化语法，这里不允许重复定义
@@ -179,7 +179,7 @@ func (t *ProgTable) getString(index int) string {
 	return *t.stringTable[index]
 }
 
-func (t *ProgTable) addRealArg(gen *codegen, arg *ProgDec, vn *int) {
+func (t *ProgTable) addRealArg(gen *compile.codegen, arg *ProgDec, vn *int) {
 	if arg.kind == "string" {
 		empty := ProgDec{
 			kind: "string",
@@ -210,9 +210,9 @@ func (t *ProgTable) exist(name string) bool {
 }
 
 // 最后处理， 生成数据段中的静态数据区、文字池和辅助栈
-func (t *ProgTable) over(gen *codegen) {
+func (t *ProgTable) over(gen *compile.codegen) {
 	// hash_map<string, var_record*, string_hash>::iterator var_i,var_iend=var_map.end();
-	fprintf(gen, "section .data\n")
+	compile.fprintf(gen, "section .data\n")
 
 }
 

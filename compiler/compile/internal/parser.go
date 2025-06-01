@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"github.com/facelang/face/compiler/compile"
 	"github.com/facelang/face/internal/ast"
+	"github.com/facelang/face/internal/tokens"
+	"go/token"
 	"os"
 )
 
 type ParserFactory interface {
 	Parse() (interface{}, error)
-	NextToken() (compile.Token, string, int, int)
+	NextToken() (tokens.Token, string, int, int)
 }
 
 func OpenFile(filepath string) (*os.File, error) {
@@ -34,82 +36,131 @@ func OpenFile(filepath string) (*os.File, error) {
 	return file, nil
 }
 
+type parser struct {
+	*lexer                  // 符号读取器
+	token  tokens.Token     // 符号
+	text   string           // 字面量
+	errors tokens.ErrorList // 异常列表
+}
+
 func Parser(file string) ParserFactory {
-	lex := &compile.lexer{buffer: &buffer{}}
-	err := lex.init(file, func(file string, line, col, off int, msg string) {
-		return
-	})
-	if err != nil {
-		return &parser{err: err}
-	}
-	out, err := OpenFile(file + ".out")
-	gen := &compile.codegen{out: out}
-
-	p := &parser{
-		file:   file,
-		err:    err,
-		gen:    gen,
-		lexer:  lex,
-		progFn: nil,
-		progTable: &compile.ProgTable{
-			fnRecList:   make(map[string]*compile.ProgFunc),
-			varRecList:  make(map[string]*compile.ProgDec),
-			stringTable: make([]*string, 0),
-			realArgList: make([]*compile.ProgDec, 0),
-		},
-	}
-
-	gen.parser = p
+	lex := NewLexer(file)
 
 	return p
 }
 
-type parser struct {
-	file      string           // 解析文件
-	err       error            // 解析异常
-	gen       *compile.codegen // 代码生成器
-	lexer     *compile.lexer   // 读取器
-	progFn    *compile.ProgFunc
-	progTable *compile.ProgTable
-}
+//func (p *parser) nextToken() tokens.Token {
+//	token := p.lexer.NextToken()
+//	for token == compile.COMMENT {
+//		token = p.lexer.NextToken()
+//	}
+//	return token
+//}
+//
+//func (p *parser) NextToken() (tokens.Token, string, int, int) {
+//	token := p.nextToken()
+//	c := p.lexer.content
+//	return token, c, p.lexer.line, p.lexer.col
+//}
 
-func (p *parser) nextToken() compile.Token {
-	token := p.lexer.NextToken()
-	for token == compile.COMMENT {
-		token = p.lexer.NextToken()
+func (p *parser) error(pos tokens.FilePos, msg string) {
+	if p.errors.Len() > 10 {
+		panic(p.errors)
 	}
-	return token
+	p.errors.Add(pos, msg)
 }
 
-func (p *parser) NextToken() (compile.Token, string, int, int) {
-	token := p.nextToken()
-	c := p.lexer.content
-	return token, c, p.lexer.line, p.lexer.col
-}
-
-func (p *parser) Parse() (interface{}, error) {
-	if p.err != nil {
-		return nil, p.err
+func (p *parser) errorExpected(pos tokens.FilePos, msg string) {
+	msg = "expected " + msg
+	switch {
+	case p.token == SEMICOLON && p.lit == "\n":
+		msg += ", found newline"
+	case p.token.IsLiteral():
+		msg += ", found " + p.identifier
+	default:
+		msg += ", found '" + p.token.String() + "'"
 	}
-	//for {
-	//	token := p.lexer.NextToken()
-	//	if token == EOF {
-	//		return nil, nil
-	//	}
-	//
-	//	fmt.Printf("Token: %v, %s", token, p.lexer.content)
-	//	if rand.Intn(10) > 7 {
-	//		p.lexer.Back(token)
-	//		fmt.Printf(" BACK\n")
-	//	} else {
-	//		fmt.Printf(" \n")
-	//	}
-	//}
-	return p.program()
+	p.error(pos, msg)
+}
+
+func (p *parser) expect(token tokens.Token) token.Pos {
+	pos := p.FilePos
+	if p.token != token {
+		p.errorExpected(pos, "'"+token.String()+"'")
+	}
+	p.next() // make progress
+	return pos
+}
+
+func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.GenDecl {
+	pos := p.expect(keyword)
+	var lparen, rparen token.Pos
+	var list []ast.Spec
+	if p.tok == token.LPAREN {
+		lparen = p.pos
+		p.next()
+		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
+			list = append(list, f(p.leadComment, keyword, iota))
+		}
+		rparen = p.expect(token.RPAREN)
+		p.expectSemi()
+	} else {
+		list = append(list, f(nil, keyword, 0))
+	}
+
+	return &ast.GenDecl{
+		Doc:    doc,
+		TokPos: pos,
+		Tok:    keyword,
+		Lparen: lparen,
+		Specs:  list,
+		Rparen: rparen,
+	}
+}
+
+func ParseFile(lexer *lexer) (interface{}, error) {
+	var decls []ast.Decl
+
+	// import decls
+	for p.tok == token.IMPORT {
+		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
+	}
+
+	if p.mode&ImportsOnly == 0 {
+		// rest of package body
+		prev := token.IMPORT
+		for p.tok != token.EOF {
+			// Continue to accept import declarations for error tolerance, but complain.
+			if p.tok == token.IMPORT && prev != token.IMPORT {
+				p.error(p.pos, "imports must appear before other declarations")
+			}
+			prev = p.tok
+
+			decls = append(decls, p.parseDecl(declStart))
+		}
+	}
+
+	f := &ast.File{
+		Doc:     doc,
+		Package: pos,
+		Name:    ident,
+		Decls:   decls,
+		// File{Start,End} are set by the defer in the caller.
+		Imports:   p.imports,
+		Comments:  p.comments,
+		GoVersion: p.goVersion,
+	}
+	var declErr func(token.Pos, string)
+	if p.mode&DeclarationErrors != 0 {
+		declErr = p.error
+	}
+	if p.mode&SkipObjectResolution == 0 {
+		resolveFile(f, p.file, declErr)
+	}
 }
 
 // Type -> char | int | void
-func (p *parser) kind(token compile.Token) string {
+func (p *parser) kind(token tokens.Token) string {
 	switch token {
 	case compile.CHAR:
 		return "char"
@@ -136,7 +187,7 @@ func (p *parser) ident() string {
 	return p.lexer.content
 }
 
-func (p *parser) require(next compile.Token) string {
+func (p *parser) require(next tokens.Token) string {
 	token := p.lexer.NextToken()
 	if token != next {
 		p.err = fmt.Errorf("[%d,%d]: %s, %s，需要一个 %s 类型！",
@@ -173,6 +224,51 @@ func (p *parser) program() (interface{}, error) {
 }
 
 // SourceFile = { ImportDecl ";" } { TopLevelDecl ";" } .
+func (p *parser) parseFile() *ast.File {
+
+	var decls []ast.Decl
+
+	token = p.lexer
+
+	// import decls
+	for token == token.IMPORT {
+		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
+	}
+
+	if p.mode&ImportsOnly == 0 {
+		// rest of package body
+		prev := token.IMPORT
+		for p.tok != token.EOF {
+			// Continue to accept import declarations for error tolerance, but complain.
+			if p.tok == token.IMPORT && prev != token.IMPORT {
+				p.error(p.pos, "imports must appear before other declarations")
+			}
+			prev = p.tok
+
+			decls = append(decls, p.parseDecl(declStart))
+		}
+	}
+
+	f := &ast.File{
+		Doc:     doc,
+		Package: pos,
+		Name:    ident,
+		Decls:   decls,
+		// File{Start,End} are set by the defer in the caller.
+		Imports:   p.imports,
+		Comments:  p.comments,
+		GoVersion: p.goVersion,
+	}
+	var declErr func(token.Pos, string)
+	if p.mode&DeclarationErrors != 0 {
+		declErr = p.error
+	}
+	if p.mode&SkipObjectResolution == 0 {
+		resolveFile(f, p.file, declErr)
+	}
+
+	return f
+}
 func (p *parser) fileOrNil() *ast.File {
 
 	f := new(ast.File)
@@ -180,6 +276,7 @@ func (p *parser) fileOrNil() *ast.File {
 
 	// Accept import declarations anywhere for error tolerance, but complain.
 	// { ( ImportDecl | TopLevelDecl ) ";" }
+
 	prev := _Import
 	for p.tok != _EOF {
 		if p.tok == _Import && prev != _Import {

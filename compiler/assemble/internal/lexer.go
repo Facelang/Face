@@ -55,7 +55,7 @@ func (lex *lexer) NextToken() tokens.Token {
 		return tokens.STRING
 	case '\'':
 		lex.ident = reader.Char(lex.reader)
-		return tokens.Char
+		return tokens.CHAR
 	case '`':
 		lex.ident = reader.RawString(lex.reader)
 		return tokens.STRING

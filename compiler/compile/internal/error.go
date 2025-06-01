@@ -1,4 +1,4 @@
-package compile
+package internal
 
 import "fmt"
 

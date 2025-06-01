@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Decimal 这是一个数字的解析器
+// Decimal 这是一个数字的解析器, 读取结束，最后一个字符不是有效数字， 可能是其它符号，所以需要退回最后一个
 func Decimal(r *Reader, first rune) (tokens.Token, string) {
 	defer func() {
 		r.GoBack() // 最后一个符号需要回退

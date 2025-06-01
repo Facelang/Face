@@ -1,15 +1,14 @@
-package compile
+package internal
 
 import (
 	"fmt"
-	"github.com/facelang/face/compiler/compile/internal"
 	"io"
 	"strconv"
 )
 
 type codegen struct {
 	out    io.Writer
-	parser *internal.parser
+	parser *parser
 }
 
 func fprintf(g *codegen, format string, args ...interface{}) {

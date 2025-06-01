@@ -2,20 +2,10 @@ package reader
 
 import (
 	"fmt"
+	"github.com/facelang/face/internal/tokens"
 	"os"
 	"unicode/utf8"
 )
-
-type ErrorFunc func(info *FilePos, msg string)
-
-type FilePos struct {
-	Filename          string
-	Col, Line, Offset int
-}
-
-func (i *FilePos) String() string {
-	return fmt.Sprintf("行: %d, 列: %d, 文件名：%s", i.Line+1, i.Col+1, i.Filename)
-}
 
 type Reader struct {
 	filename       string // 文件名称
@@ -31,8 +21,8 @@ func (r *Reader) errorf(format string, args ...any) {
 		fmt.Sprintf(format, args...), r.line+1, r.col+1, r.filename))
 }
 
-func (r *Reader) Pos() *FilePos {
-	return &FilePos{
+func (r *Reader) Pos() tokens.FilePos {
+	return tokens.FilePos{
 		Filename: r.filename,
 		Col:      r.col + 1,
 		Line:     r.line + 1,
@@ -106,12 +96,12 @@ redo:
 	return ch, chw
 }
 
-// 文本读取器准备就绪
+// TextReady 文本读取器准备就绪
 func (r *Reader) TextReady() {
 	r.b = r.r
 }
 
-// 读取一段本文
+// ReadText 读取一段本文
 func (r *Reader) ReadText() string {
 	defer func() {
 		r.b = -1 // 重置游标
