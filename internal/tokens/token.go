@@ -41,3 +41,5 @@ func (tok Token) String() (name string) {
 	}
 	return name
 }
+
+func (tok Token) IsLiteral() bool { return IDENT <= tok && tok <= STRING }

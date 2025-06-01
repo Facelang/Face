@@ -82,6 +82,8 @@ func (lex *lexer) NextToken() tokens.Token {
 	}
 
 	switch ch {
+	case '\n':
+		return tokens.NEWLINE
 	case '+':
 		return ADD
 	case '-':

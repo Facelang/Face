@@ -247,6 +247,12 @@ func Keywords(ident string) (tokens.Token, bool) {
 	return tokens.ILLEGAL, false
 }
 
+// IsOperator returns true for tokens corresponding to operators and
+// delimiters; it returns false otherwise.
+func (tok Token) IsOperator() bool {
+	return (operator_beg < tok && tok < operator_end) || tok == TILDE
+}
+
 //
 //func (tok Token) String() string {
 //	s := ""

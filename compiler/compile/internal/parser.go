@@ -5,8 +5,10 @@ import (
 	"github.com/facelang/face/compiler/compile"
 	"github.com/facelang/face/internal/ast"
 	"github.com/facelang/face/internal/tokens"
+	"go/build/constraint"
 	"go/token"
 	"os"
+	"strings"
 )
 
 type ParserFactory interface {
@@ -37,16 +39,10 @@ func OpenFile(filepath string) (*os.File, error) {
 }
 
 type parser struct {
-	*lexer                  // 符号读取器
-	token  tokens.Token     // 符号
-	text   string           // 字面量
-	errors tokens.ErrorList // 异常列表
-}
-
-func Parser(file string) ParserFactory {
-	lex := NewLexer(file)
-
-	return p
+	*lexer                   // 符号读取器
+	token   tokens.Token     // 符号
+	literal string           // 字面量
+	errors  tokens.ErrorList // 异常列表
 }
 
 //func (p *parser) nextToken() tokens.Token {
@@ -63,6 +59,20 @@ func Parser(file string) ParserFactory {
 //	return token, c, p.lexer.line, p.lexer.col
 //}
 
+func (p *parser) next() {
+	for {
+		p.token = p.NextToken()
+		p.literal += p.identifier
+		if p.token == tokens.COMMENT {
+			continue
+		}
+		if p.token == tokens.NEWLINE {
+			continue
+		}
+		break
+	}
+}
+
 func (p *parser) error(pos tokens.FilePos, msg string) {
 	if p.errors.Len() > 10 {
 		panic(p.errors)
@@ -73,7 +83,7 @@ func (p *parser) error(pos tokens.FilePos, msg string) {
 func (p *parser) errorExpected(pos tokens.FilePos, msg string) {
 	msg = "expected " + msg
 	switch {
-	case p.token == SEMICOLON && p.lit == "\n":
+	case p.token == tokens.NEWLINE:
 		msg += ", found newline"
 	case p.token.IsLiteral():
 		msg += ", found " + p.identifier
@@ -83,7 +93,7 @@ func (p *parser) errorExpected(pos tokens.FilePos, msg string) {
 	p.error(pos, msg)
 }
 
-func (p *parser) expect(token tokens.Token) token.Pos {
+func (p *parser) expect(token tokens.Token) tokens.FilePos {
 	pos := p.FilePos
 	if p.token != token {
 		p.errorExpected(pos, "'"+token.String()+"'")
@@ -92,7 +102,96 @@ func (p *parser) expect(token tokens.Token) token.Pos {
 	return pos
 }
 
-func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.GenDecl {
+// expect2 is like expect, but it returns an invalid position
+// if the expected token is not found.
+func (p *parser) expect2(token tokens.Token) (pos tokens.FilePos) {
+	if p.token == token {
+		pos = p.FilePos
+	} else {
+		p.errorExpected(p.FilePos, "'"+token.String()+"'")
+	}
+	p.next() // make progress
+	return
+}
+
+// expectClosing is like expect but provides a better error message
+// for the common case of a missing comma before a newline.
+func (p *parser) expectClosing(token tokens.Token, context string) tokens.FilePos {
+	//if p.token != token && p.token == SEMICOLON && p.literal == "\n" {
+	if p.token != token && p.token == tokens.NEWLINE {
+		p.error(p.FilePos, "missing ',' before newline in "+context)
+		p.next()
+	}
+	return p.expect(token)
+}
+
+// expectSemi consumes a semicolon and returns the applicable line comment.
+func (p *parser) expectSemi() (comment *ast.CommentGroup) {
+	// semicolon is optional before a closing ')' or '}'
+	if p.token != RPAREN && p.token != RBRACE {
+		switch p.token {
+		case COMMA:
+			// permit a ',' instead of a ';' but complain
+			p.errorExpected(p.FilePos, "';'")
+			fallthrough
+		case SEMICOLON:
+			if p.lit == ";" {
+				// explicit semicolon
+				p.next()
+				comment = p.lineComment // use following comments
+			} else {
+				// artificial semicolon
+				comment = p.lineComment // use preceding comments
+				p.next()
+			}
+			return comment
+		default:
+			p.errorExpected(p.FilePos, "';'")
+			p.advance(stmtStart)
+		}
+	}
+	return nil
+}
+
+type parseSpecFunction func(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec
+
+func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
+	var ident *ast.Ident
+	switch p.token {
+	case tokens.IDENT:
+		ident = p.parseIdent()
+	case PERIOD:
+		ident = &ast.Ident{NamePos: p.pos, Name: "."}
+		p.next()
+	}
+
+	pos := p.pos
+	var path string
+	if p.token == tokens.STRING {
+		path = p.lit
+		p.next()
+	} else if p.token.IsLiteral() {
+		p.error(pos, "import path must be a string")
+		p.next()
+	} else {
+		p.error(pos, "missing import path")
+		p.advance(exprEnd)
+	}
+	comment := p.expectSemi()
+
+	// collect imports
+	spec := &ast.ImportSpec{
+		Doc:     doc,
+		Name:    ident,
+		Path:    &ast.BasicLit{ValuePos: pos, Kind: token.STRING, Value: path},
+		Comment: comment,
+	}
+	p.imports = append(p.imports, spec)
+
+	return spec
+}
+
+func (p *parser) parseGenDecl(keyword tokens.Token, f parseSpecFunction) *ast.GenDecl {
 	pos := p.expect(keyword)
 	var lparen, rparen token.Pos
 	var list []ast.Spec
@@ -225,13 +324,10 @@ func (p *parser) program() (interface{}, error) {
 
 // SourceFile = { ImportDecl ";" } { TopLevelDecl ";" } .
 func (p *parser) parseFile() *ast.File {
-
 	var decls []ast.Decl
 
-	token = p.lexer
-
 	// import decls
-	for token == token.IMPORT {
+	for p.token == IMPORT {
 		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
 	}
 
