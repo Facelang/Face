@@ -11,6 +11,5 @@ const (
 	Char                             // ''
 	STRING                           // "", ``
 	COMMENT                          //
-	DOT                              // .
 	RETURN                           // \n
 )
