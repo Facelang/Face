@@ -2,6 +2,7 @@ package compile
 
 import (
 	"fmt"
+	"github.com/facelang/face/compiler/compile/internal"
 	"os"
 	"strconv"
 )
@@ -69,7 +70,7 @@ func NumberVal(input string) int {
 	return r
 }
 
-func (fn *ProgFunc) createTempVar(p *parser, kind, val string, hasVal bool, vn *int) *ProgDec {
+func (fn *ProgFunc) createTempVar(p *internal.parser, kind, val string, hasVal bool, vn *int) *ProgDec {
 	// 创建临时变量记录
 	temp := &ProgDec{kind: kind}
 	switch kind {

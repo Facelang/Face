@@ -6,36 +6,37 @@ import (
 	"unicode/utf8"
 )
 
-type ErrorFunc func(info *FileInfo, msg string)
+type ErrorFunc func(info *FilePos, msg string)
 
-type FileInfo struct {
+type FilePos struct {
 	Filename          string
 	Col, Line, Offset int
 }
 
-func (i *FileInfo) String() string {
+func (i *FilePos) String() string {
 	return fmt.Sprintf("行: %d, 列: %d, 文件名：%s", i.Line+1, i.Col+1, i.Filename)
 }
 
 type Reader struct {
-	*FileInfo        // 文件信息
-	buff      []byte // 缓存池
-	ch        byte   // 主要记录换行符更新
-	chw       int    // 缓存字符宽度, 下一次读更新上一个字符宽度
-	b, r, e   int    // 读取器游标
+	filename       string // 文件名称
+	buff           []byte // 缓存池
+	ch             byte   // 主要记录换行符更新
+	chw            int    // 缓存字符宽度, 下一次读更新上一个字符宽度
+	b, r, e        int    // 读取器游标
+	line, col, off int    // 文件指针
 }
 
 func (r *Reader) errorf(format string, args ...any) {
 	panic(fmt.Errorf("Reader Error: %s\n\t->[%d, %d] %s",
-		fmt.Sprintf(format, args...), r.Line+1, r.Col+1, r.Filename))
+		fmt.Sprintf(format, args...), r.line+1, r.col+1, r.filename))
 }
 
-func (r *Reader) GetFile() *FileInfo {
-	return &FileInfo{
-		r.Filename,
-		r.Col + 1,
-		r.Line + 1,
-		r.Offset,
+func (r *Reader) Pos() *FilePos {
+	return &FilePos{
+		Filename: r.filename,
+		Col:      r.col + 1,
+		Line:     r.line + 1,
+		Offset:   r.off,
 	}
 }
 
@@ -49,13 +50,13 @@ func (r *Reader) GoBack() {
 func (r *Reader) ReadByte() (byte, bool) {
 	if r.chw > 0 { // 文件位置信息记录更新， 下一个字符开始 = 上一个字符结束 + 上一个字符宽度
 		r.r += r.chw
-		r.Offset += r.chw
+		r.off += r.chw
 
 		if r.ch == '\n' {
-			r.Col = 0
-			r.Line += 1
+			r.col = 0
+			r.line += 1
 		} else {
-			r.Col += 1 // utf8 字符占一列
+			r.col += 1 // utf8 字符占一列
 		}
 
 		r.chw = 0
@@ -91,12 +92,12 @@ redo:
 
 	// 检查解码错误
 	if ch == utf8.RuneError && chw == 1 { // 无效的 UTF-8 编码
-		r.errorf("invalid UTF-8 encoding at position %d", r.Offset-1)
+		r.errorf("invalid UTF-8 encoding at position %d", r.off-1)
 	}
 
 	const BOM = 0xfeff
 	if ch == BOM {
-		if r.Offset > 0 {
+		if r.off > 0 {
 			r.errorf("invalid BOM in the middle of the file")
 		}
 		goto redo // 忽略 BOM 字符
@@ -121,14 +122,7 @@ func (r *Reader) ReadText() string {
 
 // FileReader todo 蔚来可能扩展支持 多种数据源读取模式，比如数据流
 func FileReader(file string) *Reader {
-	r := &Reader{
-		FileInfo: &FileInfo{
-			Filename: file,
-			Col:      0,
-			Line:     0,
-			Offset:   0,
-		},
-	}
+	r := &Reader{filename: file}
 
 	buff, err := os.ReadFile(file)
 	if err != nil {
@@ -141,15 +135,7 @@ func FileReader(file string) *Reader {
 }
 
 func BytesReader(input []byte) *Reader {
-	r := &Reader{
-		FileInfo: &FileInfo{
-			Filename: "Bytes",
-			Col:      0,
-			Line:     0,
-			Offset:   0,
-		},
-	}
-
+	r := &Reader{filename: "#Bytes"}
 	r.buff = input
 	r.e = len(input)
 	return r

@@ -1,9 +1,12 @@
 package compile
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/facelang/face/compiler/compile/internal"
+)
 
 func Program(file string) {
-	p := Parser(file)
+	p := internal.Parser(file)
 	_, err := p.Parse()
 	if err != nil {
 		panic(err)
@@ -11,7 +14,7 @@ func Program(file string) {
 }
 
 func PrintTokenList(file string) {
-	p := Parser(file)
+	p := internal.Parser(file)
 	token, content, line, col := p.NextToken()
 	for token != EOF {
 		fmt.Printf("%s：%s [%d, %d]\n", token.String(), content, line, col)
