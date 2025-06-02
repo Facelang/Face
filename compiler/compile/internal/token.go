@@ -75,6 +75,7 @@ const (
 	FOR
 
 	FUNC
+	FROM
 	GO
 	GOTO
 	IF
@@ -90,7 +91,7 @@ const (
 	STRUCT
 	SWITCH
 	TYPE
-	VAR
+	LET
 	keyword_end
 )
 
@@ -166,6 +167,7 @@ func init() {
 	tokens.NameTable[FALLTHROUGH] = "fallthrough"
 	tokens.NameTable[FOR] = "for"
 	tokens.NameTable[FUNC] = "func"
+	tokens.NameTable[FROM] = "from"
 	tokens.NameTable[GO] = "go"
 	tokens.NameTable[GOTO] = "goto"
 	tokens.NameTable[IF] = "if"
@@ -179,7 +181,7 @@ func init() {
 	tokens.NameTable[STRUCT] = "struct"
 	tokens.NameTable[SWITCH] = "switch"
 	tokens.NameTable[TYPE] = "type"
-	tokens.NameTable[VAR] = "var"
+	tokens.NameTable[LET] = "let"
 }
 
 var keywordsList = []string{
@@ -194,6 +196,7 @@ var keywordsList = []string{
 	"fallthrough", // FALLTHROUGH
 	"for",         // FOR
 	"func",        // FUNC
+	"from",        // FROM
 	"go",          // GO
 	"goto",        // GOTO
 	"if",          // IF
@@ -207,7 +210,7 @@ var keywordsList = []string{
 	"struct",      // STRUCT
 	"switch",      // SWITCH
 	"type",        // TYPE
-	"var",         // VAR
+	"let",         // LET
 }
 
 var keywordsTable = []tokens.Token{
@@ -222,6 +225,7 @@ var keywordsTable = []tokens.Token{
 	FALLTHROUGH,
 	FOR,
 	FUNC,
+	FROM,
 	GO,
 	GOTO,
 	IF,
@@ -235,7 +239,7 @@ var keywordsTable = []tokens.Token{
 	STRUCT,
 	SWITCH,
 	TYPE,
-	VAR,
+	LET,
 }
 
 func Keywords(ident string) (tokens.Token, bool) {
@@ -249,9 +253,9 @@ func Keywords(ident string) (tokens.Token, bool) {
 
 // IsOperator returns true for tokens corresponding to operators and
 // delimiters; it returns false otherwise.
-func (tok Token) IsOperator() bool {
-	return (operator_beg < tok && tok < operator_end) || tok == TILDE
-}
+//func (tok tokens.Token) IsOperator() bool {
+//	return (operator_beg < tok && tok < operator_end) || tok == TILDE
+//}
 
 //
 //func (tok Token) String() string {

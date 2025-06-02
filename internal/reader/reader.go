@@ -2,7 +2,7 @@ package reader
 
 import (
 	"fmt"
-	"github.com/facelang/face/internal/tokens"
+	"github.com/facelang/face/internal/prog"
 	"os"
 	"unicode/utf8"
 )
@@ -21,8 +21,8 @@ func (r *Reader) errorf(format string, args ...any) {
 		fmt.Sprintf(format, args...), r.line+1, r.col+1, r.filename))
 }
 
-func (r *Reader) Pos() tokens.FilePos {
-	return tokens.FilePos{
+func (r *Reader) Pos() prog.FilePos {
+	return prog.FilePos{
 		Filename: r.filename,
 		Col:      r.col + 1,
 		Line:     r.line + 1,

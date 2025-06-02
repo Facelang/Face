@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"github.com/facelang/face/internal/prog"
 	"github.com/facelang/face/internal/reader"
 	"github.com/facelang/face/internal/tokens"
 	"unicode"
@@ -11,9 +12,9 @@ import (
 const Whitespace = 1<<'\t' | 1<<'\r' | 1<<' '
 
 type lexer struct {
-	*reader.Reader                // 读取器
-	FilePos        tokens.FilePos // 位置信息
-	identifier     string         // 标识符
+	*reader.Reader              // 读取器
+	FilePos        prog.FilePos // 位置信息
+	identifier     string       // 标识符
 }
 
 //type lexer struct {

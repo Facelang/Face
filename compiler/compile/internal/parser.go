@@ -2,14 +2,11 @@ package internal
 
 import (
 	"fmt"
-	"github.com/facelang/face/compiler/compile"
 	"github.com/facelang/face/internal/ast"
 	"github.com/facelang/face/internal/prog"
 	"github.com/facelang/face/internal/tokens"
-	"go/build/constraint"
 	"go/token"
 	"os"
-	"strings"
 )
 
 type ParserFactory interface {
@@ -74,14 +71,14 @@ func (p *parser) next() {
 	}
 }
 
-func (p *parser) error(pos tokens.FilePos, msg string) {
+func (p *parser) error(pos prog.FilePos, msg string) {
 	if p.errors.Len() > 10 {
 		panic(p.errors)
 	}
 	p.errors.Add(pos, msg)
 }
 
-func (p *parser) errorExpected(pos tokens.FilePos, msg string) {
+func (p *parser) errorExpected(pos prog.FilePos, msg string) {
 	msg = "expected " + msg
 	switch {
 	case p.token == tokens.NEWLINE:
@@ -94,7 +91,7 @@ func (p *parser) errorExpected(pos tokens.FilePos, msg string) {
 	p.error(pos, msg)
 }
 
-func (p *parser) expect(token tokens.Token) tokens.FilePos {
+func (p *parser) expect(token tokens.Token) prog.FilePos {
 	pos := p.FilePos
 	if p.token != token {
 		p.errorExpected(pos, "'"+token.String()+"'")
@@ -105,7 +102,7 @@ func (p *parser) expect(token tokens.Token) tokens.FilePos {
 
 // expect2 is like expect, but it returns an invalid position
 // if the expected token is not found.
-func (p *parser) expect2(token tokens.Token) (pos tokens.FilePos) {
+func (p *parser) expect2(token tokens.Token) (pos prog.FilePos) {
 	if p.token == token {
 		pos = p.FilePos
 	} else {
@@ -117,7 +114,7 @@ func (p *parser) expect2(token tokens.Token) (pos tokens.FilePos) {
 
 // expectClosing is like expect but provides a better error message
 // for the common case of a missing comma before a newline.
-func (p *parser) expectClosing(token tokens.Token, context string) tokens.FilePos {
+func (p *parser) expectClosing(token tokens.Token, context string) prog.FilePos {
 	//if p.token != token && p.token == SEMICOLON && p.literal == "\n" {
 	if p.token != token && p.token == tokens.NEWLINE {
 		p.error(p.FilePos, "missing ',' before newline in "+context)
@@ -175,297 +172,218 @@ func (p *parser) parseIdentList() (list []*ast.Ident) {
 	return
 }
 
-type parseSpecFunction func(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec
-
-func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
-	var ident *ast.Ident
-	switch p.token {
-	case tokens.IDENT:
-		ident = p.parseIdent()
-	case PERIOD:
-		ident = &ast.Ident{NamePos: p.pos, Name: "."}
+// name = identifier .
+func (p *parser) name() *prog.Name {
+	if p.token != tokens.IDENT {
+		name := p.literal
 		p.next()
+		return prog.NewName(p.FilePos, name)
 	}
-
-	pos := p.pos
-	var path string
-	if p.token == tokens.STRING {
-		path = p.lit
-		p.next()
-	} else if p.token.IsLiteral() {
-		p.error(pos, "import path must be a string")
-		p.next()
-	} else {
-		p.error(pos, "missing import path")
-		p.advance(exprEnd)
-	}
-	comment := p.expectSemi()
-
-	// collect imports
-	spec := &ast.ImportSpec{
-		Doc:     doc,
-		Name:    ident,
-		Path:    &ast.BasicLit{ValuePos: pos, Kind: token.STRING, Value: path},
-		Comment: comment,
-	}
-	p.imports = append(p.imports, spec)
-
-	return spec
+	p.errorExpected(p.FilePos, "identifier")
+	return prog.NewName(p.FilePos, "_")
 }
 
-func (p *parser) parseGenDecl(keyword tokens.Token, f parseSpecFunction) *ast.GenDecl {
-	pos := p.expect(keyword)
-	var lparen, rparen token.Pos
-	var list []ast.Spec
-	// 不支持批量语法
-	list = append(list, f(nil, keyword, 0))
-
-	return &ast.GenDecl{
-		Doc:    doc,
-		TokPos: pos,
-		Tok:    keyword,
-		Lparen: lparen,
-		Specs:  list,
-		Rparen: rparen,
+// nameList = name { "," name } .
+func (p *parser) nameList(name *prog.Name) []*prog.Name {
+	list := []*prog.Name{name}
+	for p.token == COMMA {
+		p.next()
+		list = append(list, p.name())
 	}
+	return list
 }
 
 // 参考 ES6 import {} from "" 语法
+// 暂不支持解包，只支持两种语法：
+// import name from ""
+// import ""
 func (p *parser) importDecl() prog.Decl {
 	d := new(prog.ImportDecl)
+	d.SetPos(p.Pos())
 
-	p.next()
-
-	if p.token == tokens.STRING {
-		d.Path = p.literal
-		return d
+	if p.token == tokens.IDENT {
+		d.Alias = p.literal
+		p.expect(FROM)
 	}
 
-	switch p.token {
-	case tokens.STRING:
-		d.Path = p.literal
-		return d
-	case _Dot:
-		d.LocalPkgName = NewName(p.pos(), ".")
-		p.next()
-	}
-	d.Path = p.oliteral()
-	if d.Path == nil {
-		p.syntaxError("missing import path")
-		p.advance(_Semi, _Rparen)
-		return d
-	}
-	if !d.Path.Bad && d.Path.Kind != StringLit {
-		p.syntaxErrorAt(d.Path.Pos(), "import path must be a string")
-		d.Path.Bad = true
-	}
-	// d.Path.Bad || d.Path.Kind == StringLit
+	d.Path = p.literal
+	p.expect(tokens.STRING)
 
 	return d
 }
 
-func ParseFile(lexer *lexer) (interface{}, error) {
-	var decls []ast.Decl
+// ConstSpec = IdentifierList [ [ Type ] "=" ExpressionList ] .
+func (p *parser) constDecl() prog.Decl {
+	d := new(prog.ConstDecl)
+	d.SetPos(p.Pos())
 
-	// import decls
-	for p.tok == token.IMPORT {
-		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
-	}
-
-	for p.tok != token.EOF {
-		// Continue to accept import declarations for error tolerance, but complain.
-		if p.tok == token.IMPORT && prev != token.IMPORT {
-			p.error(p.pos, "imports must appear before other declarations")
+	d.NameList = p.nameList(p.name())
+	if p.token != tokens.EOF && p.token != SEMICOLON && p.token != _Rparen {
+		d.Type = p.typeOrNil()
+		if p.gotAssign() {
+			d.Values = p.exprList()
 		}
-		prev = p.tok
-
-		decls = append(decls, p.parseDecl(declStart))
 	}
 
-	f := &ast.File{
-		Doc:     doc,
-		Package: pos,
-		Name:    ident,
-		Decls:   decls,
-		// File{Start,End} are set by the defer in the caller.
-		Imports:   p.imports,
-		Comments:  p.comments,
-		GoVersion: p.goVersion,
-	}
-	var declErr func(token.Pos, string)
-	if p.mode&DeclarationErrors != 0 {
-		declErr = p.error
-	}
-	if p.mode&SkipObjectResolution == 0 {
-		resolveFile(f, p.file, declErr)
-	}
+	return d
 }
 
-// Type -> char | int | void
-func (p *parser) kind(token tokens.Token) string {
-	switch token {
-	case compile.CHAR:
-		return "char"
-	case compile.INT:
-		return "int"
-	case compile.STRING:
-		return "string"
-	case compile.VOID:
-		return "void"
-	default:
-		p.err = fmt.Errorf("不支持的数据类型[%d,%d]: %s, %s",
-			p.lexer.line, p.lexer.col, token.String(), p.lexer.content)
-		panic(p.err)
+// LetDecl = "let" IdentifierList [ Type ] [ "=" ExpressionList ] .
+func (p *parser) letDecl() prog.Decl {
+	d := new(prog.LetDecl)
+	d.SetPos(p.Pos())
+
+	d.NameList = p.nameList(p.name())
+	if p.token != tokens.EOF && p.token != tokens.SEMICOLON && p.token != tokens.RPAREN {
+		d.Type = p.typeOrNil()
+		if p.gotAssign() {
+			d.Values = p.exprList()
+		}
 	}
+
+	return d
 }
 
-func (p *parser) ident() string {
-	token := p.lexer.NextToken()
-	if token != compile.IDENT {
-		p.err = fmt.Errorf("[%d,%d]: %s, %s，需要一个ID类型！",
-			p.lexer.line, p.lexer.col, token.String(), p.lexer.content)
-		panic(p.err)
+// TypeDecl = "type" ( TypeSpec | "(" { TypeSpec ";" } ")" ) .
+func (p *parser) typeDecl() prog.Decl {
+	d := new(prog.TypeDecl)
+	d.SetPos(p.Pos())
+
+	// 解析类型名称
+	d.Name = p.name()
+
+	// 解析类型定义
+	if p.token == tokens.ASSIGN {
+		p.next()
+		d.Type = p.typeOrNil()
+	} else {
+		p.error(p.FilePos, "类型声明需要指定类型定义")
 	}
-	return p.lexer.content
+
+	return d
 }
 
-func (p *parser) require(next tokens.Token) string {
-	token := p.lexer.NextToken()
-	if token != next {
-		p.err = fmt.Errorf("[%d,%d]: %s, %s，需要一个 %s 类型！",
-			p.lexer.line, p.lexer.col, token.String(), p.lexer.content, next)
-		panic(p.err)
-	}
-	return p.lexer.content
-}
+// FuncDecl = "func" FunctionName Signature [ FunctionBody ] .
+// FunctionName = identifier .
+// Signature = Parameters [ Result ] .
+// Result = Parameters | Type .
+func (p *parser) funcDecl() prog.Decl {
+	d := new(prog.FuncDecl)
+	d.SetPos(p.Pos())
 
-// .：语法结束符，表示规则的终结（EOF）。
-// {} 表示 零个或多个 顶层声明，因此顶层声明也是可选的。
-// program = decl { program } .
-func (p *parser) program() (interface{}, error) {
-	if p.err != nil {
-		return nil, p.err
+	// 解析函数名
+	d.Name = p.name()
+
+	// 解析参数列表
+	if p.token == tokens.LPAREN {
+		p.next()
+		d.Params = p.paramList()
+		p.expect(tokens.RPAREN)
 	}
-	//for {
-	//	token := p.lexer.scan()
-	//	if token == EOF {
-	//		println("文件解析结束！")
-	//		return
-	//	}
-	//	fmt.Printf("[%d,%d,%d] %s %s \n",
-	//		p.lexer.line, p.lexer.line, p.lexer.offset,
-	//		token.String(), p.lexer.content,
-	//	)
-	//}
-	token := p.lexer.NextToken()
-	if token == compile.EOF {
-		return nil, nil
+
+	// 解析返回值类型
+	if p.token != tokens.LBRACE {
+		d.Result = p.typeOrNil()
 	}
-	p.dec(token)
-	return p.program()
+
+	// 解析函数体
+	if p.token == tokens.LBRACE {
+		p.next()
+		d.Body = p.blockStmt()
+	}
+
+	return d
 }
 
 // SourceFile = { ImportDecl ";" } { TopLevelDecl ";" } .
-func (p *parser) parseFile() *ast.File {
-	var decls []ast.Decl
+func (p *parser) parseFile() *prog.File {
+
+	f := new(prog.File)
 
 	// import decls
 	for p.token == IMPORT {
-		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
+		p.next()
+		f.DeclList = append(f.DeclList, p.importDecl())
 	}
 
-	for p.tok != token.EOF {
-		// Continue to accept import declarations for error tolerance, but complain.
-		if p.tok == token.IMPORT && prev != token.IMPORT {
-			p.error(p.pos, "imports must appear before other declarations")
+	for p.token != tokens.EOF {
+		if p.token == IMPORT {
+			p.error(p.FilePos, "import 语法只能出现在文件头部！")
 		}
-		prev = p.tok
 
-		decls = append(decls, p.parseDecl(declStart))
-	}
-
-	f := &ast.File{
-		Doc:     doc,
-		Package: pos,
-		Name:    ident,
-		Decls:   decls,
-		// File{Start,End} are set by the defer in the caller.
-		Imports:   p.imports,
-		Comments:  p.comments,
-		GoVersion: p.goVersion,
-	}
-	var declErr func(token.Pos, string)
-	if p.mode&DeclarationErrors != 0 {
-		declErr = p.error
-	}
-	if p.mode&SkipObjectResolution == 0 {
-		resolveFile(f, p.file, declErr)
+		switch p.token {
+		case CONST:
+			p.next()
+			f.DeclList = append(f.DeclList, p.constDecl())
+		case LET:
+			p.next()
+			f.DeclList = append(f.DeclList, p.letDecl())
+		case TYPE:
+			p.next()
+			f.DeclList = append(f.DeclList, p.typeDecl())
+		case FUNC:
+			p.next()
+			f.DeclList = append(f.DeclList, p.funcDecl())
+		default:
+			p.error(p.FilePos, "顶层语法仅支持 const, let, type, func 关键字定义！")
+		}
 	}
 
 	return f
 }
-func (p *parser) fileOrNil() *ast.File {
 
-	f := new(ast.File)
-	f.Version = "" // todo
-
-	// Accept import declarations anywhere for error tolerance, but complain.
-	// { ( ImportDecl | TopLevelDecl ) ";" }
-
-	prev := _Import
-	for p.tok != _EOF {
-		if p.tok == _Import && prev != _Import {
-			p.syntaxError("imports must appear before other declarations")
-		}
-		prev = p.tok
-
-		switch p.tok {
-		case _Import:
-			p.next()
-			f.DeclList = p.appendGroup(f.DeclList, p.importDecl)
-
-		case _Const:
-			p.next()
-			f.DeclList = p.appendGroup(f.DeclList, p.constDecl)
-
-		case _Type:
-			p.next()
-			f.DeclList = p.appendGroup(f.DeclList, p.typeDecl)
-
-		case _Var:
-			p.next()
-			f.DeclList = p.appendGroup(f.DeclList, p.varDecl)
-
-		case _Func:
-			p.next()
-			if d := p.funcDeclOrNil(); d != nil {
-				f.DeclList = append(f.DeclList, d)
-			}
-
-		default:
-			if p.tok == _Lbrace && len(f.DeclList) > 0 && isEmptyFuncDecl(f.DeclList[len(f.DeclList)-1]) {
-				// opening { of function declaration on next line
-				p.syntaxError("unexpected semicolon or newline before {")
-			} else {
-				p.syntaxError("non-declaration statement outside function body")
-			}
-			p.advance(_Import, _Const, _Type, _Var, _Func)
-			continue
-		}
-
-		// Reset p.pragma BEFORE advancing to the next token (consuming ';')
-		// since comments before may set pragmas for the next function decl.
-		p.clearPragma()
-
-		if p.tok != _EOF && !p.got(_Semi) {
-			p.syntaxError("after top level declaration")
-			p.advance(_Import, _Const, _Type, _Var, _Func)
-		}
+// gotAssign = "=" .
+func (p *parser) gotAssign() bool {
+	if p.token == tokens.ASSIGN {
+		p.next()
+		return true
 	}
-	// p.tok == _EOF
+	return false
+}
 
-	p.clearPragma()
-	f.EOF = p.pos()
+// exprList = Expression { "," Expression } .
+func (p *parser) exprList() []*ProgDec {
+	var list []*ProgDec
+	var vn int
+	list = append(list, expr(p, &vn))
+	for p.token == tokens.COMMA {
+		p.next()
+		list = append(list, expr(p, &vn))
+	}
+	return list
+}
 
-	return f
+// paramList = ParameterDecl { "," ParameterDecl } .
+func (p *parser) paramList() []*prog.ParamDecl {
+	var list []*prog.ParamDecl
+	list = append(list, p.paramDecl())
+	for p.token == tokens.COMMA {
+		p.next()
+		list = append(list, p.paramDecl())
+	}
+	return list
+}
+
+// ParameterDecl = IdentifierList Type .
+func (p *parser) paramDecl() *prog.ParamDecl {
+	d := new(prog.ParamDecl)
+	d.SetPos(p.Pos())
+
+	d.NameList = p.nameList(p.name())
+	d.Type = p.typeOrNil()
+
+	return d
+}
+
+// blockStmt = "{" StatementList "}" .
+func (p *parser) blockStmt() *prog.BlockStmt {
+	s := new(prog.BlockStmt)
+	s.SetPos(p.Pos())
+
+	for p.token != tokens.RBRACE && p.token != tokens.EOF {
+		s.List = append(s.List, p.stmt())
+	}
+
+	p.expect(tokens.RBRACE)
+	return s
 }

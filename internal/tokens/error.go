@@ -2,12 +2,13 @@ package tokens
 
 import (
 	"fmt"
+	"github.com/facelang/face/internal/prog"
 	"io"
 	"sort"
 )
 
 type Error struct {
-	Pos     FilePos
+	Pos     prog.FilePos
 	Message string
 }
 
@@ -19,7 +20,7 @@ func (e Error) Error() string {
 type ErrorList []*Error
 
 // Add adds an [Error] with given position and error message to an [ErrorList].
-func (p *ErrorList) Add(pos FilePos, msg string) {
+func (p *ErrorList) Add(pos prog.FilePos, msg string) {
 	*p = append(*p, &Error{pos, msg})
 }
 
@@ -58,7 +59,7 @@ func (p ErrorList) Sort() {
 // RemoveMultiples sorts an [ErrorList] and removes all but the first error per line.
 func (p *ErrorList) RemoveMultiples() {
 	sort.Sort(p)
-	var last FilePos // initial last.Line is != any legal error line
+	var last prog.FilePos // initial last.Line is != any legal error line
 	i := 0
 	for _, e := range *p {
 		if e.Pos.Filename != last.Filename || e.Pos.Line != last.Line {

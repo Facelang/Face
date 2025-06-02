@@ -4,39 +4,28 @@ package prog
 // Nodes
 
 type Node interface {
-	// Pos() returns the position associated with the node as follows:
-	// 1) The position of a node representing a terminal syntax production
-	//    (Name, BasicLit, etc.) is the position of the respective production
-	//    in the source.
-	// 2) The position of a node representing a non-terminal production
-	//    (IndexExpr, IfStmt, etc.) is the position of a token uniquely
-	//    associated with that production; usually the left-most one
-	//    ('[' for IndexExpr, 'if' for IfStmt, etc.)
-	Pos() Pos
-	SetPos(Pos)
-	aNode()
+	Pos() FilePos
+	SetPos(FilePos)
+	node()
 }
 
 type node struct {
-	// commented out for now since not yet used
-	// doc  *Comment // nil means no comment(s) attached
-	pos Pos
+	pos FilePos
 }
 
-func (n *node) Pos() Pos       { return n.pos }
-func (n *node) SetPos(pos Pos) { n.pos = pos }
-func (*node) aNode()           {}
+func (n *node) Pos() FilePos       { return n.pos }
+func (n *node) SetPos(pos FilePos) { n.pos = pos }
+func (*node) node()                {}
 
 // ----------------------------------------------------------------------------
 // Files
 
 // package PkgName; DeclList[0], DeclList[1], ...
 type File struct {
-	Pragma    Pragma
-	PkgName   *Name
-	DeclList  []Decl
-	EOF       Pos
-	GoVersion string
+	PkgName  *Name
+	DeclList []Decl
+	EOF      FilePos
+	Version  string
 	node
 }
 
@@ -52,8 +41,8 @@ type (
 	//              Path
 	// LocalPkgName Path
 	ImportDecl struct {
-		Pack string
-		Path string // 路径
+		Alias string // 别名
+		Path  string // 路径
 		decl
 	}
 
@@ -61,8 +50,6 @@ type (
 	// NameList      = Values
 	// NameList Type = Values
 	ConstDecl struct {
-		Group    *Group // nil means not part of a group
-		Pragma   Pragma
 		NameList []*Name
 		Type     Expr // nil means no type
 		Values   Expr // nil means no values
@@ -71,8 +58,6 @@ type (
 
 	// Name Type
 	TypeDecl struct {
-		Group      *Group // nil means not part of a group
-		Pragma     Pragma
 		Name       *Name
 		TParamList []*Field // nil means no type parameters
 		Alias      bool
@@ -84,8 +69,6 @@ type (
 	// NameList Type = Values
 	// NameList      = Values
 	VarDecl struct {
-		Group    *Group // nil means not part of a group
-		Pragma   Pragma
 		NameList []*Name
 		Type     Expr // nil means no type
 		Values   Expr // nil means no values
@@ -97,7 +80,6 @@ type (
 	// func Receiver Name Type { Body }
 	// func Receiver Name Type
 	FuncDecl struct {
-		Pragma     Pragma
 		Recv       *Field // nil means regular function
 		Name       *Name
 		TParamList []*Field // nil means no type parameters
@@ -114,7 +96,7 @@ func (*decl) aDecl() {}
 // ----------------------------------------------------------------------------
 // Expressions
 
-func NewName(pos Pos, value string) *Name {
+func NewName(pos FilePos, value string) *Name {
 	n := new(Name)
 	n.pos = pos
 	n.Value = value
@@ -454,23 +436,3 @@ type simpleStmt struct {
 }
 
 func (simpleStmt) aSimpleStmt() {}
-
-// ----------------------------------------------------------------------------
-// Comments
-
-// TODO(gri) Consider renaming to CommentPos, CommentPlacement, etc.
-// Kind = Above doesn't make much sense.
-type CommentKind uint
-
-const (
-	Above CommentKind = iota
-	Below
-	Left
-	Right
-)
-
-type Comment struct {
-	Kind CommentKind
-	Text string
-	Next *Comment
-}
