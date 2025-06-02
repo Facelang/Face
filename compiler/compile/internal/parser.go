@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/facelang/face/compiler/compile"
 	"github.com/facelang/face/internal/ast"
+	"github.com/facelang/face/internal/prog"
 	"github.com/facelang/face/internal/tokens"
 	"go/build/constraint"
 	"go/token"
@@ -135,15 +136,7 @@ func (p *parser) expectSemi() (comment *ast.CommentGroup) {
 			p.errorExpected(p.FilePos, "';'")
 			fallthrough
 		case SEMICOLON:
-			if p.lit == ";" {
-				// explicit semicolon
-				p.next()
-				comment = p.lineComment // use following comments
-			} else {
-				// artificial semicolon
-				comment = p.lineComment // use preceding comments
-				p.next()
-			}
+			p.next()
 			return comment
 		default:
 			p.errorExpected(p.FilePos, "';'")
@@ -151,6 +144,35 @@ func (p *parser) expectSemi() (comment *ast.CommentGroup) {
 		}
 	}
 	return nil
+}
+
+// ----------------------------------------------------------------------------
+// Identifiers
+
+func (p *parser) parseIdent() *ast.Ident {
+	pos := p.pos
+	name := "_"
+	if p.tok == token.IDENT {
+		name = p.lit
+		p.next()
+	} else {
+		p.expect(token.IDENT) // use expect() error handling
+	}
+	return &ast.Ident{NamePos: pos, Name: name}
+}
+
+func (p *parser) parseIdentList() (list []*ast.Ident) {
+	if p.trace {
+		defer un(trace(p, "IdentList"))
+	}
+
+	list = append(list, p.parseIdent())
+	for p.tok == token.COMMA {
+		p.next()
+		list = append(list, p.parseIdent())
+	}
+
+	return
 }
 
 type parseSpecFunction func(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec
@@ -195,17 +217,8 @@ func (p *parser) parseGenDecl(keyword tokens.Token, f parseSpecFunction) *ast.Ge
 	pos := p.expect(keyword)
 	var lparen, rparen token.Pos
 	var list []ast.Spec
-	if p.tok == token.LPAREN {
-		lparen = p.pos
-		p.next()
-		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
-			list = append(list, f(p.leadComment, keyword, iota))
-		}
-		rparen = p.expect(token.RPAREN)
-		p.expectSemi()
-	} else {
-		list = append(list, f(nil, keyword, 0))
-	}
+	// 不支持批量语法
+	list = append(list, f(nil, keyword, 0))
 
 	return &ast.GenDecl{
 		Doc:    doc,
@@ -217,6 +230,40 @@ func (p *parser) parseGenDecl(keyword tokens.Token, f parseSpecFunction) *ast.Ge
 	}
 }
 
+// 参考 ES6 import {} from "" 语法
+func (p *parser) importDecl() prog.Decl {
+	d := new(prog.ImportDecl)
+
+	p.next()
+
+	if p.token == tokens.STRING {
+		d.Path = p.literal
+		return d
+	}
+
+	switch p.token {
+	case tokens.STRING:
+		d.Path = p.literal
+		return d
+	case _Dot:
+		d.LocalPkgName = NewName(p.pos(), ".")
+		p.next()
+	}
+	d.Path = p.oliteral()
+	if d.Path == nil {
+		p.syntaxError("missing import path")
+		p.advance(_Semi, _Rparen)
+		return d
+	}
+	if !d.Path.Bad && d.Path.Kind != StringLit {
+		p.syntaxErrorAt(d.Path.Pos(), "import path must be a string")
+		d.Path.Bad = true
+	}
+	// d.Path.Bad || d.Path.Kind == StringLit
+
+	return d
+}
+
 func ParseFile(lexer *lexer) (interface{}, error) {
 	var decls []ast.Decl
 
@@ -225,18 +272,14 @@ func ParseFile(lexer *lexer) (interface{}, error) {
 		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
 	}
 
-	if p.mode&ImportsOnly == 0 {
-		// rest of package body
-		prev := token.IMPORT
-		for p.tok != token.EOF {
-			// Continue to accept import declarations for error tolerance, but complain.
-			if p.tok == token.IMPORT && prev != token.IMPORT {
-				p.error(p.pos, "imports must appear before other declarations")
-			}
-			prev = p.tok
-
-			decls = append(decls, p.parseDecl(declStart))
+	for p.tok != token.EOF {
+		// Continue to accept import declarations for error tolerance, but complain.
+		if p.tok == token.IMPORT && prev != token.IMPORT {
+			p.error(p.pos, "imports must appear before other declarations")
 		}
+		prev = p.tok
+
+		decls = append(decls, p.parseDecl(declStart))
 	}
 
 	f := &ast.File{
@@ -331,18 +374,14 @@ func (p *parser) parseFile() *ast.File {
 		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
 	}
 
-	if p.mode&ImportsOnly == 0 {
-		// rest of package body
-		prev := token.IMPORT
-		for p.tok != token.EOF {
-			// Continue to accept import declarations for error tolerance, but complain.
-			if p.tok == token.IMPORT && prev != token.IMPORT {
-				p.error(p.pos, "imports must appear before other declarations")
-			}
-			prev = p.tok
-
-			decls = append(decls, p.parseDecl(declStart))
+	for p.tok != token.EOF {
+		// Continue to accept import declarations for error tolerance, but complain.
+		if p.tok == token.IMPORT && prev != token.IMPORT {
+			p.error(p.pos, "imports must appear before other declarations")
 		}
+		prev = p.tok
+
+		decls = append(decls, p.parseDecl(declStart))
 	}
 
 	f := &ast.File{
