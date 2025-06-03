@@ -1,0 +1,76 @@
+package parser
+
+import (
+	"github.com/facelang/face/compiler/compile/internal"
+	"github.com/facelang/face/compiler/compile/internal/api"
+	"github.com/facelang/face/internal/prog"
+	"github.com/facelang/face/internal/tokens"
+)
+
+// NewIndirect 指针类型 todo, 暂时忽略
+func NewIndirect(pos prog.FilePos, typ prog.Expr) prog.Expr {
+	o := new(prog.Operation)
+	o.pos = pos
+	o.Op = Mul
+	o.X = typ
+	return o
+}
+
+// FuncType If context != "", type parameters are not permitted.
+func FuncType(p *parser, context string) ([]*prog.Field, *prog.FuncType) {
+
+	typ := new(prog.FuncType)
+	typ.pos = p.FilePos
+
+	var tparamList []*prog.Field
+	// 目标语法使用 尖括号
+	//if p.got(api.LBRACK) { // [] 泛型 func [] name(args)
+	//	if context != "" {
+	//		// accept but complain
+	//		p.syntaxErrorAt(typ.pos, context+" must have no type parameters")
+	//	}
+	//	if p.tok == _Rbrack {
+	//		p.syntaxError("empty type parameter list")
+	//		p.next()
+	//	} else {
+	//		tparamList = p.paramList(nil, nil, _Rbrack, true)
+	//	}
+	//}
+
+	p.want(api.LPAREN)
+	typ.ParamList = p.paramList(nil, nil, _Rparen, false)
+	typ.ResultList = p.funcResult()
+
+	return tparamList, typ
+}
+
+// TypeOrNil is like type_ but it returns nil if there was no type
+// instead of reporting an error.
+//
+//	Type     = TypeName | TypeLit | "(" Type ")" .
+//	TypeName = identifier | QualifiedIdent .
+//	TypeLit  = ArrayType | StructType | PointerType | FunctionType | InterfaceType |
+//		      SliceType | MapType | Channel_Type .
+func TypeOrNil(p *parser) string {
+	switch p.token {
+	case '*':
+		p.next()
+		return "*"
+	case tokens.IDENT:
+	case api.FUNC:
+		p.next()
+		t := FuncType(p, "function type")
+		return t
+	case api.LBRACK: // []
+	case api.MAP: // map[_]_
+	case api.STRUCT:
+	case api.INTERFACE:
+	case NAME:
+	case api.LPAREN:
+
+	}
+	if p.token == tokens.IDENT {
+		return p.name()
+	}
+	return ""
+}

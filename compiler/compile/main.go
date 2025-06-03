@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/facelang/face/compiler/compile/internal"
+	"github.com/facelang/face/compiler/compile/internal/parser"
 	"github.com/facelang/face/compiler/provider/asm"
 	"github.com/facelang/face/internal/os/elf"
 	"os"
@@ -39,7 +40,7 @@ func main() {
 	}
 
 	for _, f := range flag.Args() {
-		lexer := internal.NewLexer(f)
+		lexer := parser.NewLexer(f)
 		parser := internal.NewParser(lexer)
 		pList := new(obj.Plist)
 		pList.Firstpc, ok = parser.Parse() // p.firstProg

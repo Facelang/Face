@@ -1,7 +1,8 @@
-package internal
+package parser
 
 import (
-	"fmt"
+	"github.com/facelang/face/compiler/compile/internal"
+	"github.com/facelang/face/compiler/compile/internal/api"
 	"github.com/facelang/face/internal/ast"
 	"github.com/facelang/face/internal/prog"
 	"github.com/facelang/face/internal/tokens"
@@ -126,13 +127,13 @@ func (p *parser) expectClosing(token tokens.Token, context string) prog.FilePos 
 // expectSemi consumes a semicolon and returns the applicable line comment.
 func (p *parser) expectSemi() (comment *ast.CommentGroup) {
 	// semicolon is optional before a closing ')' or '}'
-	if p.token != RPAREN && p.token != RBRACE {
+	if p.token != api.RPAREN && p.token != api.RBRACE {
 		switch p.token {
-		case COMMA:
+		case api.COMMA:
 			// permit a ',' instead of a ';' but complain
 			p.errorExpected(p.FilePos, "';'")
 			fallthrough
-		case SEMICOLON:
+		case api.SEMICOLON:
 			p.next()
 			return comment
 		default:
@@ -141,6 +142,35 @@ func (p *parser) expectSemi() (comment *ast.CommentGroup) {
 		}
 	}
 	return nil
+}
+
+func (p *parser) got(token tokens.Token) bool {
+	if p.token == token {
+		p.next()
+		return true
+	}
+	return false
+}
+
+func (p *parser) want(token tokens.Token) {
+	if !p.got(token) {
+		p.syntaxError("expected " + tokstring(token))
+		p.advance()
+	}
+}
+
+// gotAssign is like got(_Assign) but it also accepts ":="
+// (and reports an error) for better parser error recovery.
+func (p *parser) gotAssign() bool {
+	switch p.tok {
+	case _Define:
+		p.syntaxError("expected =")
+		fallthrough
+	case _Assign:
+		p.next()
+		return true
+	}
+	return false
 }
 
 // ----------------------------------------------------------------------------
@@ -186,7 +216,7 @@ func (p *parser) name() *prog.Name {
 // nameList = name { "," name } .
 func (p *parser) nameList(name *prog.Name) []*prog.Name {
 	list := []*prog.Name{name}
-	for p.token == COMMA {
+	for p.token == api.COMMA {
 		p.next()
 		list = append(list, p.name())
 	}
@@ -203,7 +233,7 @@ func (p *parser) importDecl() prog.Decl {
 
 	if p.token == tokens.IDENT {
 		d.Alias = p.literal
-		p.expect(FROM)
+		p.expect(api.FROM)
 	}
 
 	d.Path = p.literal
@@ -218,7 +248,7 @@ func (p *parser) constDecl() prog.Decl {
 	d.SetPos(p.Pos())
 
 	d.NameList = p.nameList(p.name())
-	if p.token != tokens.EOF && p.token != SEMICOLON && p.token != _Rparen {
+	if p.token != tokens.EOF && p.token != api.SEMICOLON && p.token != _Rparen {
 		d.Type = p.typeOrNil()
 		if p.gotAssign() {
 			d.Values = p.exprList()
@@ -301,27 +331,27 @@ func (p *parser) parseFile() *prog.File {
 	f := new(prog.File)
 
 	// import decls
-	for p.token == IMPORT {
+	for p.token == api.IMPORT {
 		p.next()
 		f.DeclList = append(f.DeclList, p.importDecl())
 	}
 
 	for p.token != tokens.EOF {
-		if p.token == IMPORT {
+		if p.token == api.IMPORT {
 			p.error(p.FilePos, "import 语法只能出现在文件头部！")
 		}
 
 		switch p.token {
-		case CONST:
+		case api.CONST:
 			p.next()
 			f.DeclList = append(f.DeclList, p.constDecl())
-		case LET:
+		case api.LET:
 			p.next()
 			f.DeclList = append(f.DeclList, p.letDecl())
-		case TYPE:
+		case api.TYPE:
 			p.next()
 			f.DeclList = append(f.DeclList, p.typeDecl())
-		case FUNC:
+		case api.FUNC:
 			p.next()
 			f.DeclList = append(f.DeclList, p.funcDecl())
 		default:
@@ -342,13 +372,13 @@ func (p *parser) gotAssign() bool {
 }
 
 // exprList = Expression { "," Expression } .
-func (p *parser) exprList() []*ProgDec {
-	var list []*ProgDec
+func (p *parser) exprList() []*internal.ProgDec {
+	var list []*internal.ProgDec
 	var vn int
-	list = append(list, expr(p, &vn))
+	list = append(list, internal.expr(p, &vn))
 	for p.token == tokens.COMMA {
 		p.next()
-		list = append(list, expr(p, &vn))
+		list = append(list, internal.expr(p, &vn))
 	}
 	return list
 }

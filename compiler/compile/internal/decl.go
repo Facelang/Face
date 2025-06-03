@@ -2,7 +2,8 @@ package internal
 
 import (
 	"fmt"
-	"github.com/facelang/face/compiler/compile"
+	"github.com/facelang/face/compiler/compile/internal/api"
+	"github.com/facelang/face/compiler/compile/internal/parser"
 	"os"
 	"strconv"
 )
@@ -70,7 +71,7 @@ func NumberVal(input string) int {
 	return r
 }
 
-func (fn *ProgFunc) createTempVar(p *parser, kind, val string, hasVal bool, vn *int) *ProgDec {
+func (fn *ProgFunc) createTempVar(p *parser.parser, kind, val string, hasVal bool, vn *int) *ProgDec {
 	// 创建临时变量记录
 	temp := &ProgDec{kind: kind}
 	switch kind {
@@ -184,7 +185,7 @@ func (t *ProgTable) addRealArg(gen *compile.codegen, arg *ProgDec, vn *int) {
 		empty := ProgDec{
 			kind: "string",
 		}
-		arg = gen.exp(ADD, &empty, arg, vn)
+		arg = gen.exp(api.ADD, &empty, arg, vn)
 	}
 	t.realArgList = append(t.realArgList, arg)
 }

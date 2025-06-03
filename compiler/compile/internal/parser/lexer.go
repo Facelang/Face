@@ -1,6 +1,7 @@
-package internal
+package parser
 
 import (
+	"github.com/facelang/face/compiler/compile/internal/api"
 	"github.com/facelang/face/internal/prog"
 	"github.com/facelang/face/internal/reader"
 	"github.com/facelang/face/internal/tokens"
@@ -76,7 +77,7 @@ func (lex *lexer) NextToken() tokens.Token {
 			ch, chw = lex.ReadRune()
 		}
 		lex.identifier = lex.ReadText()
-		if key, ok := Keywords(lex.identifier); ok {
+		if key, ok := api.Keywords(lex.identifier); ok {
 			return key
 		}
 		return tokens.IDENT
@@ -86,11 +87,11 @@ func (lex *lexer) NextToken() tokens.Token {
 	case '\n':
 		return tokens.NEWLINE
 	case '+':
-		return ADD
+		return api.ADD
 	case '-':
-		return SUB
+		return api.SUB
 	case '*':
-		return MUL
+		return api.MUL
 	case '/':
 		next, _ := lex.ReadByte()
 		if next == '/' {
@@ -98,45 +99,45 @@ func (lex *lexer) NextToken() tokens.Token {
 			return tokens.COMMENT
 		}
 		lex.GoBack()
-		return QUO
+		return api.QUO
 	case '>':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return GEQ
+			return api.GEQ
 		} else if next == '>' {
-			return SHR
+			return api.SHR
 		} else {
 			lex.GoBack()
-			return GTR
+			return api.GTR
 		}
 	case '<':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return LEQ
+			return api.LEQ
 		} else if next == '>' {
-			return SHL
+			return api.SHL
 		} else {
 			lex.GoBack()
-			return LSS
+			return api.LSS
 		}
 	case '=':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return EQL
+			return api.EQL
 		}
 		lex.GoBack()
-		return ASSIGN
+		return api.ASSIGN
 	case '!':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return NEQ
+			return api.NEQ
 		}
 		lex.GoBack()
-		return NOT
+		return api.NOT
 	case ';':
-		return SEMICOLON
+		return api.SEMICOLON
 	case ',':
-		return COMMA
+		return api.COMMA
 	case '"': // 查找字符串，到 " 结束, 最后一个字符是 ", 所以不需要回退
 		ident, _ := reader.String(lex.Reader, '"')
 		lex.identifier = ident
@@ -148,13 +149,13 @@ func (lex *lexer) NextToken() tokens.Token {
 		lex.identifier = reader.RawString(lex.Reader)
 		return tokens.STRING
 	case '(':
-		return LPAREN
+		return api.LPAREN
 	case ')':
-		return RPAREN
+		return api.RPAREN
 	case '{':
-		return LBRACE
+		return api.LBRACE
 	case '}':
-		return RBRACE
+		return api.RBRACE
 	default:
 		return tokens.ILLEGAL
 	}
