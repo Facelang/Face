@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"github.com/facelang/face/compiler/compile/internal"
 	"github.com/facelang/face/compiler/compile/internal/api"
 	"github.com/facelang/face/internal/ast"
@@ -72,6 +73,14 @@ func (p *parser) next() {
 	}
 }
 
+func (p *parser) got(token tokens.Token) bool {
+	if p.token == token {
+		p.next()
+		return true
+	}
+	return false
+}
+
 func (p *parser) error(pos prog.FilePos, msg string) {
 	if p.errors.Len() > 10 {
 		panic(p.errors)
@@ -79,38 +88,19 @@ func (p *parser) error(pos prog.FilePos, msg string) {
 	p.errors.Add(pos, msg)
 }
 
-func (p *parser) errorExpected(pos prog.FilePos, msg string) {
-	msg = "expected " + msg
-	switch {
-	case p.token == tokens.NEWLINE:
-		msg += ", found newline"
-	case p.token.IsLiteral():
-		msg += ", found " + p.identifier
-	default:
-		msg += ", found '" + p.token.String() + "'"
-	}
-	p.error(pos, msg)
+func (p *parser) errorf(format string, args ...interface{}) {
+	p.errors.Add(p.FilePos, fmt.Sprintf(format, args...))
 }
 
 func (p *parser) expect(token tokens.Token) prog.FilePos {
 	pos := p.FilePos
-	if p.token != token {
-		p.errorExpected(pos, "'"+token.String()+"'")
-	}
-	p.next() // make progress
-	return pos
-}
-
-// expect2 is like expect, but it returns an invalid position
-// if the expected token is not found.
-func (p *parser) expect2(token tokens.Token) (pos prog.FilePos) {
 	if p.token == token {
-		pos = p.FilePos
-	} else {
-		p.errorExpected(p.FilePos, "'"+token.String()+"'")
+		p.next()
+		return pos
 	}
-	p.next() // make progress
-	return
+
+	ExceptError(p, token.String())
+	return pos
 }
 
 // expectClosing is like expect but provides a better error message
@@ -144,21 +134,6 @@ func (p *parser) expectSemi() (comment *ast.CommentGroup) {
 	return nil
 }
 
-func (p *parser) got(token tokens.Token) bool {
-	if p.token == token {
-		p.next()
-		return true
-	}
-	return false
-}
-
-func (p *parser) want(token tokens.Token) {
-	if !p.got(token) {
-		p.syntaxError("expected " + tokstring(token))
-		p.advance()
-	}
-}
-
 // gotAssign is like got(_Assign) but it also accepts ":="
 // (and reports an error) for better parser error recovery.
 func (p *parser) gotAssign() bool {
@@ -176,32 +151,6 @@ func (p *parser) gotAssign() bool {
 // ----------------------------------------------------------------------------
 // Identifiers
 
-func (p *parser) parseIdent() *ast.Ident {
-	pos := p.pos
-	name := "_"
-	if p.tok == token.IDENT {
-		name = p.lit
-		p.next()
-	} else {
-		p.expect(token.IDENT) // use expect() error handling
-	}
-	return &ast.Ident{NamePos: pos, Name: name}
-}
-
-func (p *parser) parseIdentList() (list []*ast.Ident) {
-	if p.trace {
-		defer un(trace(p, "IdentList"))
-	}
-
-	list = append(list, p.parseIdent())
-	for p.tok == token.COMMA {
-		p.next()
-		list = append(list, p.parseIdent())
-	}
-
-	return
-}
-
 // name = identifier .
 func (p *parser) name() *prog.Name {
 	if p.token != tokens.IDENT {
@@ -209,7 +158,7 @@ func (p *parser) name() *prog.Name {
 		p.next()
 		return prog.NewName(p.FilePos, name)
 	}
-	p.errorExpected(p.FilePos, "identifier")
+	ExceptError(p, "identifier")
 	return prog.NewName(p.FilePos, "_")
 }
 

@@ -74,3 +74,16 @@ func TypeOrNil(p *parser) string {
 	}
 	return ""
 }
+
+/**
+函数类型: let v1 func(string)
+函数类型: let v2 (string) => string
+数组类型: let v3 array<int>
+字典类型: let v4 map<string, string>
+基本数据类型: let v5 int [string, float]
+其它自定义类型: let v6 http.Http [或其它类型别名]
+*/
+
+var name func(string) = func(s string) {
+
+}

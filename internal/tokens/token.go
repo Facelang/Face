@@ -1,6 +1,8 @@
 package tokens
 
-import "strconv"
+import (
+	"strconv"
+)
 
 type Token rune
 
@@ -32,14 +34,14 @@ var NameTable = [...]string{
 	STRING: "STRING",
 }
 
-func (tok Token) String() (name string) {
-	if tok >= 0 && tok <= ILLEGAL {
-		name = NameTable[tok]
+func (token Token) String() (name string) {
+	if token >= 0 && token <= ILLEGAL {
+		name = NameTable[token]
 	}
 	if name == "" {
-		name = "token(" + strconv.Itoa(int(tok)) + ")"
+		name = "token(" + strconv.Itoa(int(token)) + ")"
 	}
 	return name
 }
 
-func (tok Token) IsLiteral() bool { return IDENT <= tok && tok <= STRING }
+func (token Token) IsLiteral() bool { return IDENT <= token && token <= STRING }
