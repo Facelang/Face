@@ -59,7 +59,7 @@ face-lang/
 - [x] Linux 平台支持
 - [ ] Osx 平台支持
 - [ ] Windows 平台支持
-- [x] 基础汇编指令支持 ``````````````````````````````````
+- [x] 基础汇编指令支持 `mov`、`cmp`、`sub`、`add`、`lea`、`call`、`int`、`imul`、`idiv`、`neg`、`inc`、`dec`、`jmp`、`je`、`jg`、`jl`、`jle`、`jne`、`jna`、`push`、`pop`
 - [ ] 基于 LLVM 实现
 - [ ] 文档完善
 - [ ] 其它汇编指令支持
