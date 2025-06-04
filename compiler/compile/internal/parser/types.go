@@ -51,28 +51,18 @@ func FuncType(p *parser, context string) ([]*prog.Field, *prog.FuncType) {
 //	TypeName = identifier | QualifiedIdent .
 //	TypeLit  = ArrayType | StructType | PointerType | FunctionType | InterfaceType |
 //		      SliceType | MapType | Channel_Type .
-func TypeOrNil(p *parser) string {
-	switch p.token {
-	case '*':
-		p.next()
-		return "*"
-	case tokens.IDENT:
-	case api.FUNC:
-		p.next()
-		t := FuncType(p, "function type")
-		return t
-	case api.LBRACK: // []
-	case api.MAP: // map[_]_
-	case api.STRUCT:
-	case api.INTERFACE:
-	case NAME:
-	case api.LPAREN:
+func TypeOrNil(p *parser) prog.Expr {
+	return nil // todo
+}
 
+func ExceptType(p *parser) prog.Expr {
+	typ := TypeOrNil(p)
+	if typ == nil {
+		typ = prog.ErrorExpr{}
+		ExceptError(p, "expected type")
 	}
-	if p.token == tokens.IDENT {
-		return p.name()
-	}
-	return ""
+
+	return typ
 }
 
 /**

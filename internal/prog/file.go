@@ -2,10 +2,7 @@ package prog
 
 import (
 	"fmt"
-	"github.com/facelang/face/internal/tokens"
 )
-
-type ErrorFunc func(info *FilePos, msg string)
 
 type FilePos struct {
 	Filename          string

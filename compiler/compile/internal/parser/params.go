@@ -1,17 +1,15 @@
 package parser
 
 import (
-	"fmt"
 	"github.com/facelang/face/compiler/compile/internal/api"
 	"github.com/facelang/face/internal/prog"
 	"github.com/facelang/face/internal/tokens"
-	"go/ast"
-	"go/token"
 )
 
-func ParamTypeList(p *parser, name *prog.Name, follow tokens.Token) *prog.Expr {
-
-}
+// const a int = 1 // byte, int8, int16, int32, int64, uint8, uint16, uint32, uint64, bool, string,
+// let b array<int> = [1,2,3]
+// let b map<int, string> = {1: "a", 2: "b", 3: "c"}
+// let c classA = {a: 1, b: 2, c: 3}
 
 // ParamOrNil = [ IdentifierList ] [ "..." ] Type . 只在参数列表中调用 follow=close
 func ParamOrNil(p *parser, name *prog.Name, follow tokens.Token) *prog.Field {
@@ -49,7 +47,7 @@ func ParamOrNil(p *parser, name *prog.Name, follow tokens.Token) *prog.Field {
 		f.Name = name
 	}
 
-	if p.token == _DotDotDot {
+	if p.token == prog.DotsType {
 		// [name] "..." ...
 		t := new(DotsType)
 		t.pos = p.pos()

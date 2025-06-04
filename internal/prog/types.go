@@ -103,6 +103,14 @@ func NewName(pos FilePos, value string) *Name {
 	return n
 }
 
+type inode struct {
+	Pos FilePos
+}
+
+type ErrorExpr struct {
+	inode
+}
+
 type (
 	Expr interface {
 		Node

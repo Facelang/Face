@@ -4,45 +4,17 @@ import (
 	"fmt"
 	"github.com/facelang/face/compiler/compile/internal"
 	"github.com/facelang/face/compiler/compile/internal/api"
-	"github.com/facelang/face/internal/ast"
 	"github.com/facelang/face/internal/prog"
 	"github.com/facelang/face/internal/tokens"
-	"go/token"
+	"go/ast"
 	"os"
 )
 
-type ParserFactory interface {
-	Parse() (interface{}, error)
-	NextToken() (tokens.Token, string, int, int)
-}
-
-func OpenFile(filepath string) (*os.File, error) {
-	// 检查文件是否存在
-	if _, err := os.Stat(filepath); err == nil {
-		// 文件已存在，先删除
-		err = os.Remove(filepath)
-		if err != nil {
-			return nil, err
-		}
-	} else if !os.IsNotExist(err) {
-		// 如果是其他错误，直接返回
-		return nil, err
-	}
-
-	// 创建文件
-	file, err := os.Create(filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	return file, nil
-}
-
 type parser struct {
-	*lexer                   // 符号读取器
-	token   tokens.Token     // 符号
-	literal string           // 字面量
-	errors  tokens.ErrorList // 异常列表
+	*lexer                 // 符号读取器
+	token   tokens.Token   // 符号
+	literal string         // 字面量
+	errors  prog.ErrorList // 异常列表
 }
 
 //func (p *parser) nextToken() tokens.Token {
@@ -207,14 +179,18 @@ func (p *parser) constDecl() prog.Decl {
 	return d
 }
 
-// LetDecl = "let" IdentifierList [ Type ] [ "=" ExpressionList ] .
-func (p *parser) letDecl() prog.Decl {
-	d := new(prog.LetDecl)
-	d.SetPos(p.Pos())
+// VarSpec = IdentifierList ( Type [ "=" ExpressionList ] | "=" ExpressionList ) .
+func (p *parser) varDecl(group *Group) Decl {
+	d := new(prog.VarDecl)
+	d.pos = p.pos()
+	d.Group = group
+	d.Pragma = p.takePragma()
 
 	d.NameList = p.nameList(p.name())
-	if p.token != tokens.EOF && p.token != tokens.SEMICOLON && p.token != tokens.RPAREN {
-		d.Type = p.typeOrNil()
+	if p.gotAssign() { // 没有类型
+		d.Values = p.exprList()
+	} else { // 有类型
+		d.Type = p.type_()
 		if p.gotAssign() {
 			d.Values = p.exprList()
 		}
