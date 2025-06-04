@@ -1,6 +1,7 @@
 package internal
 
 import (
+	tokens2 "github.com/facelang/face/compiler/compile/internal/tokens"
 	"github.com/facelang/face/internal/reader"
 	"github.com/facelang/face/internal/tokens"
 	"unicode"
@@ -11,14 +12,14 @@ const Whitespace = 1<<'\t' | 1<<'\n' | 1<<'\r' | 1<<' '
 
 type lexer struct {
 	reader *reader.Reader
-	token  tokens.Token
+	token  tokens2.Token
 	ident  string
 }
 
-func (lex *lexer) NextToken() tokens.Token {
+func (lex *lexer) NextToken() tokens2.Token {
 	ch, chw := lex.reader.ReadRune()
 	if chw == 0 {
-		return tokens.EOF
+		return tokens2.EOF
 	}
 
 	// skip white space
@@ -27,7 +28,7 @@ func (lex *lexer) NextToken() tokens.Token {
 	}
 
 	if chw == 0 {
-		return tokens.EOF
+		return tokens2.EOF
 	}
 
 	lex.ident = ""
@@ -44,7 +45,7 @@ func (lex *lexer) NextToken() tokens.Token {
 			ch, chw = lex.reader.ReadRune()
 		}
 		lex.ident = lex.reader.ReadText()
-		return tokens.IDENT
+		return tokens2.IDENT
 	}
 
 	// determine token value
@@ -52,18 +53,18 @@ func (lex *lexer) NextToken() tokens.Token {
 	case '"':
 		ident, _ := reader.String(lex.reader, '"')
 		lex.ident = ident
-		return tokens.STRING
+		return tokens2.STRING
 	case '\'':
 		lex.ident = reader.Char(lex.reader)
 		return tokens.CHAR
 	case '`':
 		lex.ident = reader.RawString(lex.reader)
-		return tokens.STRING
+		return tokens2.STRING
 	case ';': // todo at&t 语法使用 # 作为注解
 		lex.ident = reader.Comment(lex.reader)
-		return tokens.COMMENT
+		return tokens2.COMMENT
 	default:
-		return tokens.Token(ch)
+		return tokens2.Token(ch)
 	}
 }
 
@@ -72,7 +73,7 @@ func CheckIdent(ch rune, i int) bool {
 		unicode.IsDigit(ch) && i > 0 // 第一个字符必须是字母或下划线
 }
 
-func GetDecimal(lex *lexer, ch rune) tokens.Token {
+func GetDecimal(lex *lexer, ch rune) tokens2.Token {
 	token, val := reader.Decimal(lex.reader, ch)
 	lex.ident = val
 	return token

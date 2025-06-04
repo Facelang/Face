@@ -1,5 +1,7 @@
 package prog
 
+import "go/token"
+
 // ----------------------------------------------------------------------------
 // Nodes
 
@@ -38,25 +40,31 @@ type (
 		aDecl()
 	}
 
-	//              Path
-	// LocalPkgName Path
+	// GenDecl 通用语句: 常量、变量（包括函数形式， 内部结构体）的定义
+	GenDecl struct { // 这是一个数组
+		Pos   FilePos     // position of Tok
+		Token token.Token // IMPORT, CONST, TYPE, or VAR
+		Specs []Spec
+	}
+
+	// FuncDecl 函数定义
+	FuncDecl struct {
+		Recv       *Field // nil means regular function
+		Name       *Name
+		TParamList []*Field // nil means no type parameters
+		Type       *FuncType
+		Body       *BlockStmt // nil means no body (forward declaration)
+		decl
+	}
+
+	// ImportDecl 包导入
 	ImportDecl struct {
 		Alias string // 别名
 		Path  string // 路径
 		decl
 	}
 
-	// NameList
-	// NameList      = Values
-	// NameList Type = Values
-	ConstDecl struct {
-		NameList []*Name
-		Type     Expr // nil means no type
-		Values   Expr // nil means no values
-		decl
-	}
-
-	// Name Type
+	// TypeDecl 数据类型定义， 结构体， 接口
 	TypeDecl struct {
 		Name       *Name
 		TParamList []*Field // nil means no type parameters
@@ -65,26 +73,13 @@ type (
 		decl
 	}
 
-	// NameList Type
-	// NameList Type = Values
+	// NameList
 	// NameList      = Values
-	VarDecl struct {
+	// NameList Type = Values
+	ValueDecl struct {
 		NameList []*Name
 		Type     Expr // nil means no type
 		Values   Expr // nil means no values
-		decl
-	}
-
-	// func          Name Type { Body }
-	// func          Name Type
-	// func Receiver Name Type { Body }
-	// func Receiver Name Type
-	FuncDecl struct {
-		Recv       *Field // nil means regular function
-		Name       *Name
-		TParamList []*Field // nil means no type parameters
-		Type       *FuncType
-		Body       *BlockStmt // nil means no body (forward declaration)
 		decl
 	}
 )
@@ -284,6 +279,153 @@ type (
 		Dir  ChanDir // 0 means no direction
 		Elem Expr
 		expr
+	}
+
+	BadExpr struct {
+		From, To token.Pos // position range of bad expression
+	}
+
+	// An Ident node represents an identifier.
+	Ident struct {
+		NamePos token.Pos // identifier position
+		Name    string    // identifier name
+		Obj     *Object   // denoted object, or nil. Deprecated: see Object.
+	}
+
+	// An Ellipsis node stands for the "..." type in a
+	// parameter list or the "..." length in an array type.
+	//
+	Ellipsis struct {
+		Ellipsis token.Pos // position of "..."
+		Elt      Expr      // ellipsis element type (parameter lists only); or nil
+	}
+
+	// A BasicLit node represents a literal of basic type.
+	//
+	// Note that for the CHAR and STRING kinds, the literal is stored
+	// with its quotes. For example, for a double-quoted STRING, the
+	// first and the last rune in the Value field will be ". The
+	// [strconv.Unquote] and [strconv.UnquoteChar] functions can be
+	// used to unquote STRING and CHAR values, respectively.
+	//
+	// For raw string literals (Kind == token.STRING && Value[0] == '`'),
+	// the Value field contains the string text without carriage returns (\r) that
+	// may have been present in the source. Because the end position is
+	// computed using len(Value), the position reported by [BasicLit.End] does not match the
+	// true source end position for raw string literals containing carriage returns.
+	BasicLit struct {
+		ValuePos token.Pos   // literal position
+		Kind     token.Token // token.INT, token.FLOAT, token.IMAG, token.CHAR, or token.STRING
+		Value    string      // literal string; e.g. 42, 0x7f, 3.14, 1e-9, 2.4i, 'a', '\x7f', "foo" or `\m\n\o`
+	}
+
+	// A FuncLit node represents a function literal.
+	FuncLit struct {
+		Type *FuncType  // function type
+		Body *BlockStmt // function body
+	}
+
+	// A CompositeLit node represents a composite literal.
+	CompositeLit struct {
+		Type       Expr      // literal type; or nil
+		Lbrace     token.Pos // position of "{"
+		Elts       []Expr    // list of composite elements; or nil
+		Rbrace     token.Pos // position of "}"
+		Incomplete bool      // true if (source) expressions are missing in the Elts list
+	}
+
+	// A ParenExpr node represents a parenthesized expression.
+	ParenExpr struct {
+		Lparen token.Pos // position of "("
+		X      Expr      // parenthesized expression
+		Rparen token.Pos // position of ")"
+	}
+
+	// A SelectorExpr node represents an expression followed by a selector.
+	SelectorExpr struct {
+		X   Expr   // expression
+		Sel *Ident // field selector
+	}
+
+	// An IndexExpr node represents an expression followed by an index.
+	IndexExpr struct {
+		X      Expr      // expression
+		Lbrack token.Pos // position of "["
+		Index  Expr      // index expression
+		Rbrack token.Pos // position of "]"
+	}
+
+	// An IndexListExpr node represents an expression followed by multiple
+	// indices.
+	IndexListExpr struct {
+		X       Expr      // expression
+		Lbrack  token.Pos // position of "["
+		Indices []Expr    // index expressions
+		Rbrack  token.Pos // position of "]"
+	}
+
+	// A SliceExpr node represents an expression followed by slice indices.
+	SliceExpr struct {
+		X      Expr      // expression
+		Lbrack token.Pos // position of "["
+		Low    Expr      // begin of slice range; or nil
+		High   Expr      // end of slice range; or nil
+		Max    Expr      // maximum capacity of slice; or nil
+		Slice3 bool      // true if 3-index slice (2 colons present)
+		Rbrack token.Pos // position of "]"
+	}
+
+	// A TypeAssertExpr node represents an expression followed by a
+	// type assertion.
+	//
+	TypeAssertExpr struct {
+		X      Expr      // expression
+		Lparen token.Pos // position of "("
+		Type   Expr      // asserted type; nil means type switch X.(type)
+		Rparen token.Pos // position of ")"
+	}
+
+	// A CallExpr node represents an expression followed by an argument list.
+	CallExpr struct {
+		Fun      Expr      // function expression
+		Lparen   token.Pos // position of "("
+		Args     []Expr    // function arguments; or nil
+		Ellipsis token.Pos // position of "..." (token.NoPos if there is no "...")
+		Rparen   token.Pos // position of ")"
+	}
+
+	// A StarExpr node represents an expression of the form "*" Expression.
+	// Semantically it could be a unary "*" expression, or a pointer type.
+	//
+	StarExpr struct {
+		Star token.Pos // position of "*"
+		X    Expr      // operand
+	}
+
+	// A UnaryExpr node represents a unary expression.
+	// Unary "*" expressions are represented via StarExpr nodes.
+	//
+	UnaryExpr struct {
+		OpPos token.Pos   // position of Op
+		Op    token.Token // operator
+		X     Expr        // operand
+	}
+
+	// A BinaryExpr node represents a binary expression.
+	BinaryExpr struct {
+		X     Expr        // left operand
+		OpPos token.Pos   // position of Op
+		Op    token.Token // operator
+		Y     Expr        // right operand
+	}
+
+	// A KeyValueExpr node represents (key : value) pairs
+	// in composite literals.
+	//
+	KeyValueExpr struct {
+		Key   Expr
+		Colon token.Pos // position of ":"
+		Value Expr
 	}
 )
 

@@ -1,9 +1,8 @@
 package parser
 
 import (
-	"github.com/facelang/face/compiler/compile/internal/api"
+	"github.com/facelang/face/compiler/compile/tokens"
 	"github.com/facelang/face/internal/prog"
-	"github.com/facelang/face/internal/tokens"
 )
 
 // const a int = 1 // byte, int8, int16, int32, int64, uint8, uint16, uint32, uint64, bool, string,
@@ -93,7 +92,7 @@ func paramList(p *parser, close tokens.Token, requireNames bool) (list []*Field)
 
 	var named int // number of parameters that have an explicit name and type
 	var typed int // number of parameters that have an explicit type
-	end := p.list("parameter list", api.COMMA, close, func() bool {
+	end := p.list("parameter list", COMMA, close, func() bool {
 		var par *prog.Field
 		f := ParamOrNil(p)
 

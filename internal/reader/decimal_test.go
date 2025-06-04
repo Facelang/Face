@@ -1,7 +1,7 @@
 package reader
 
 import (
-	"github.com/facelang/face/internal/tokens"
+	"github.com/facelang/face/compiler/compile/internal/tokens"
 	"testing"
 )
 

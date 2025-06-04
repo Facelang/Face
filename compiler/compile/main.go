@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/facelang/face/compiler/compile/internal"
-	"github.com/facelang/face/compiler/compile/internal/parser"
+	"github.com/facelang/face/compiler/compile/parser"
 	"github.com/facelang/face/compiler/provider/asm"
 	"github.com/facelang/face/internal/os/elf"
 	"os"

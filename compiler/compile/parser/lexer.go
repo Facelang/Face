@@ -1,10 +1,8 @@
 package parser
 
 import (
-	"github.com/facelang/face/compiler/compile/internal/api"
-	"github.com/facelang/face/internal/prog"
+	"github.com/facelang/face/compiler/compile/tokens"
 	"github.com/facelang/face/internal/reader"
-	"github.com/facelang/face/internal/tokens"
 	"unicode"
 	"unicode/utf8"
 )
@@ -13,9 +11,9 @@ import (
 const Whitespace = 1<<'\t' | 1<<'\r' | 1<<' '
 
 type lexer struct {
-	*reader.Reader              // 读取器
-	FilePos        prog.FilePos // 位置信息
-	identifier     string       // 标识符
+	*reader.Reader            // 读取器
+	pos            tokens.Pos // 位置信息
+	identifier     string     // 标识符
 }
 
 //type lexer struct {
@@ -52,7 +50,7 @@ func (lex *lexer) NextToken() tokens.Token {
 		return tokens.EOF
 	}
 
-	lex.FilePos = lex.Pos()
+	lex.pos = tokens.Pos(lex.Pos())
 
 	// skip white space
 	for Whitespace&(1<<ch) != 0 {
@@ -77,21 +75,18 @@ func (lex *lexer) NextToken() tokens.Token {
 			ch, chw = lex.ReadRune()
 		}
 		lex.identifier = lex.ReadText()
-		if key, ok := api.Keywords(lex.identifier); ok {
-			return key
-		}
-		return tokens.IDENT
+		return tokens.Lookup(lex.identifier)
 	}
 
 	switch ch {
 	case '\n':
 		return tokens.NEWLINE
 	case '+':
-		return api.ADD
+		return tokens.ADD
 	case '-':
-		return api.SUB
+		return tokens.SUB
 	case '*':
-		return api.MUL
+		return tokens.MUL
 	case '/':
 		next, _ := lex.ReadByte()
 		if next == '/' {
@@ -99,45 +94,45 @@ func (lex *lexer) NextToken() tokens.Token {
 			return tokens.COMMENT
 		}
 		lex.GoBack()
-		return api.QUO
+		return tokens.QUO
 	case '>':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return api.GEQ
+			return tokens.GEQ
 		} else if next == '>' {
-			return api.SHR
+			return tokens.SHR
 		} else {
 			lex.GoBack()
-			return api.GTR
+			return tokens.GTR
 		}
 	case '<':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return api.LEQ
+			return tokens.LEQ
 		} else if next == '>' {
-			return api.SHL
+			return tokens.SHL
 		} else {
 			lex.GoBack()
-			return api.LSS
+			return tokens.LSS
 		}
 	case '=':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return api.EQL
+			return tokens.EQL
 		}
 		lex.GoBack()
-		return api.ASSIGN
+		return tokens.ASSIGN
 	case '!':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return api.NEQ
+			return tokens.NEQ
 		}
 		lex.GoBack()
-		return api.NOT
+		return tokens.NOT
 	case ';':
-		return api.SEMICOLON
+		return tokens.SEMICOLON
 	case ',':
-		return api.COMMA
+		return tokens.COMMA
 	case '"': // 查找字符串，到 " 结束, 最后一个字符是 ", 所以不需要回退
 		ident, _ := reader.String(lex.Reader, '"')
 		lex.identifier = ident
@@ -149,13 +144,13 @@ func (lex *lexer) NextToken() tokens.Token {
 		lex.identifier = reader.RawString(lex.Reader)
 		return tokens.STRING
 	case '(':
-		return api.LPAREN
+		return tokens.LPAREN
 	case ')':
-		return api.RPAREN
+		return tokens.RPAREN
 	case '{':
-		return api.LBRACE
+		return tokens.LBRACE
 	case '}':
-		return api.RBRACE
+		return tokens.RBRACE
 	default:
 		return tokens.ILLEGAL
 	}

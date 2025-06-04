@@ -2,7 +2,7 @@ package reader
 
 import (
 	"fmt"
-	"github.com/facelang/face/internal/tokens"
+	"github.com/facelang/face/compiler/compile/internal/tokens"
 	"strings"
 )
 

@@ -1,10 +1,10 @@
 package parser
 
 import (
-	"github.com/facelang/face/compiler/compile/internal"
-	"github.com/facelang/face/compiler/compile/internal/api"
+	"github.com/facelang/face/compiler/compile/tokens"
 	"github.com/facelang/face/internal/prog"
-	"github.com/facelang/face/internal/tokens"
+	"go/ast"
+	"go/token"
 )
 
 // NewIndirect 指针类型 todo, 暂时忽略
@@ -37,7 +37,7 @@ func FuncType(p *parser, context string) ([]*prog.Field, *prog.FuncType) {
 	//	}
 	//}
 
-	p.want(api.LPAREN)
+	p.want(LPAREN)
 	typ.ParamList = p.paramList(nil, nil, _Rparen, false)
 	typ.ResultList = p.funcResult()
 
@@ -52,16 +52,46 @@ func FuncType(p *parser, context string) ([]*prog.Field, *prog.FuncType) {
 //	TypeLit  = ArrayType | StructType | PointerType | FunctionType | InterfaceType |
 //		      SliceType | MapType | Channel_Type .
 func TypeOrNil(p *parser) prog.Expr {
-	return nil // todo
-}
-
-func ExceptType(p *parser) prog.Expr {
-	typ := TypeOrNil(p)
-	if typ == nil {
-		typ = prog.ErrorExpr{}
-		ExceptError(p, "expected type")
+	//defer decNestLev(incNestLev(p)) // 递归统计，避免递归太深
+	switch p.token {
+	case tokens.IDENT:
+		typ := p.parseTypeName(nil)
+		if p.tok == token.LBRACK {
+			typ = p.parseTypeInstance(typ)
+		}
+		return typ
+	case LBRACK:
+		lbrack := p.expect(LBRACK)
+		return p.parseArrayType(lbrack, nil)
+	case STRUCT:
+		return p.parseStructType()
+	case MUL:
+		return p.parsePointerType()
+	case FUNC:
+		return p.parseFuncType()
+	case INTERFACE:
+		return p.parseInterfaceType()
+	case MAP:
+		return p.parseMapType()
+	case CHAN, ARROW:
+		return p.parseChanType()
+	case LPAREN:
+		lparen := p.pos
+		p.next()
+		typ := p.parseType()
+		rparen := p.expect(RPAREN)
+		return &ast.ParenExpr{Lparen: lparen, X: typ, Rparen: rparen}
 	}
 
+	// no type found
+	return nil
+}
+
+func RequireType(p *parser) prog.Expr {
+	typ := TypeOrNil(p)
+	if typ == nil {
+		p.unexpect("type")
+	}
 	return typ
 }
 

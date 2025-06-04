@@ -2,8 +2,8 @@ package internal
 
 import (
 	"fmt"
+	"github.com/facelang/face/compiler/compile/internal/tokens"
 	"github.com/facelang/face/internal/arch"
-	"github.com/facelang/face/internal/tokens"
 	"io"
 	"os"
 	"strconv"
