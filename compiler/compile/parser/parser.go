@@ -153,17 +153,16 @@ func (p *parser) nameList(name *ast.Name) []*ast.Name {
 // 暂不支持解包，只支持两种语法：
 // import name from ""
 // import ""
-func (p *parser) importDecl() ast.Decl {
-	d := new(ast.ImportDecl)
-	d.SetPos(p.Pos())
+func (p *parser) importDecl() *ast.Package {
+	d := new(ast.Package)
+	d.Pos = p.expect(tokens.IMPORT)
 
 	if p.token == tokens.IDENT {
-		d.Alias = p.literal
-		p.expect(FROM)
+		d.Name = p.literal
+		p.expect(tokens.FROM)
 	}
 
 	d.Path = p.literal
-	p.expect(tokens.STRING)
 
 	return d
 }
@@ -255,35 +254,33 @@ func (p *parser) funcDecl() ast.Decl {
 
 // SourceFile = { ImportDecl ";" } { TopLevelDecl ";" } .
 func (p *parser) parseFile() *ast.File {
-
 	f := new(ast.File)
 
-	// import decls
-	for p.token == IMPORT {
-		p.next()
-		f.DeclList = append(f.DeclList, p.importDecl())
-	}
-
+	prev := tokens.EOF
 	for p.token != tokens.EOF {
-		if p.token == IMPORT {
-			p.error(p.Pos, "import 语法只能出现在文件头部！")
-		}
+		prev = p.token
 
 		switch p.token {
-		case CONST:
+		case tokens.IMPORT:
+			if prev != tokens.IMPORT {
+				p.error(p.pos, "import 语法只能出现在文件头部！")
+			}
+			p.next()
+			f.Imports = append(f.Imports, p.importDecl())
+		case tokens.CONST:
 			p.next()
 			f.DeclList = append(f.DeclList, p.constDecl())
-		case LET:
+		case tokens.LET:
 			p.next()
 			f.DeclList = append(f.DeclList, p.letDecl())
-		case TYPE:
+		case tokens.TYPE:
 			p.next()
 			f.DeclList = append(f.DeclList, p.typeDecl())
-		case FUNC:
+		case tokens.FUNC:
 			p.next()
 			f.DeclList = append(f.DeclList, p.funcDecl())
 		default:
-			p.error(p.Pos, "顶层语法仅支持 const, let, type, func 关键字定义！")
+			p.error(p.pos, "顶层语法仅支持 const, let, type, func 关键字定义！")
 		}
 	}
 

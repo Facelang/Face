@@ -3,7 +3,6 @@ package parser
 import (
 	"github.com/facelang/face/compiler/compile/ast"
 	"github.com/facelang/face/compiler/compile/tokens"
-	"go/token"
 )
 
 // maxNestLev is the deepest we're willing to recurse during parsing
@@ -571,7 +570,7 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 				if par.name == nil { // 参数名为空？
 					errPos = typ.Offset() // 记录一个异常
 					n := &ast.Name{Pos: errPos, Name: "_"}
-					par.name = n       // 记录一个 _ 下划线变量
+					par.name = n // 记录一个 _ 下划线变量
 				}
 			} else if typ != nil { // par.typ == nil && typ != nil
 				par.typ = typ
@@ -616,7 +615,9 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 	if named == 0 {
 		// parameter list consists of types only
 		for _, par := range list { // 再一次过滤空异常
-			assert(par.typ != nil, "nil type in unnamed parameter list")
+			if par.typ == nil {
+				p.error(p.pos, "nil type in unnamed parameter list")
+			}
 			params = append(params, &ast.Field{Type: par.typ})
 		}
 		return
@@ -624,10 +625,12 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 
 	// If the parameter list consists of named parameters with types,
 	// collect all names with the same types into a single ast.Field.
-	var names []*ast.Ident
+	var names []*ast.Name
 	var typ ast.Expr
 	addParams := func() {
-		assert(typ != nil, "nil type in named parameter list")
+		if typ == nil {
+			p.error(p.pos, "nil type in unnamed parameter list")
+		}
 		field := &ast.Field{Names: names, Type: typ}
 		params = append(params, field)
 		names = nil
@@ -648,10 +651,3 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 	}
 	return
 }
-
-type name interface {
-	~int | float32
-	Main(string) string
-}
-
-type name0 int | string

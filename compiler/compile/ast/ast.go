@@ -7,7 +7,6 @@ package ast
 
 import (
 	"github.com/facelang/face/compiler/compile/tokens"
-	"strings"
 )
 
 // ----------------------------------------------------------------------------
@@ -68,123 +67,6 @@ type Comment struct {
 func (c *Comment) Offset() tokens.Pos { return c.Slash }
 func (c *Comment) End() tokens.Pos    { return tokens.Pos(int(c.Slash) + len(c.Text)) }
 
-// A CommentGroup represents a sequence of comments
-// with no other tokens and no empty lines between.
-type CommentGroup struct {
-	List []*Comment // len(List) > 0
-}
-
-func (g *CommentGroup) Offset() tokens.Pos { return g.List[0].Offset() }
-func (g *CommentGroup) End() tokens.Pos    { return g.List[len(g.List)-1].End() }
-
-func isWhitespace(ch byte) bool { return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' }
-
-func stripTrailingWhitespace(s string) string {
-	i := len(s)
-	for i > 0 && isWhitespace(s[i-1]) {
-		i--
-	}
-	return s[0:i]
-}
-
-// Text returns the text of the comment.
-// Comment markers (//, /*, and */), the first space of a line comment, and
-// leading and trailing empty lines are removed.
-// Comment directives like "//line" and "//go:noinline" are also removed.
-// Multiple empty lines are reduced to one, and trailing space on lines is trimmed.
-// Unless the result is empty, it is newline-terminated.
-func (g *CommentGroup) Text() string {
-	if g == nil {
-		return ""
-	}
-	comments := make([]string, len(g.List))
-	for i, c := range g.List {
-		comments[i] = c.Text
-	}
-
-	lines := make([]string, 0, 10) // most comments are less than 10 lines
-	for _, c := range comments {
-		// Remove comment markers.
-		// The parser has given us exactly the comment text.
-		switch c[1] {
-		case '/':
-			//-style comment (no newline at the end)
-			c = c[2:]
-			if len(c) == 0 {
-				// empty line
-				break
-			}
-			if c[0] == ' ' {
-				// strip first space - required for Example tests
-				c = c[1:]
-				break
-			}
-			if isDirective(c) {
-				// Ignore //go:noinline, //line, and so on.
-				continue
-			}
-		case '*':
-			/*-style comment */
-			c = c[2 : len(c)-2]
-		}
-
-		// Split on newlines.
-		cl := strings.Split(c, "\n")
-
-		// Walk lines, stripping trailing white space and adding to list.
-		for _, l := range cl {
-			lines = append(lines, stripTrailingWhitespace(l))
-		}
-	}
-
-	// Remove leading blank lines; convert runs of
-	// interior blank lines to a single blank line.
-	n := 0
-	for _, line := range lines {
-		if line != "" || n > 0 && lines[n-1] != "" {
-			lines[n] = line
-			n++
-		}
-	}
-	lines = lines[0:n]
-
-	// Add final "" entry to get trailing newline from Join.
-	if n > 0 && lines[n-1] != "" {
-		lines = append(lines, "")
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-// isDirective reports whether c is a comment directive.
-// This code is also in go/printer.
-func isDirective(c string) bool {
-	// "//line " is a line directive.
-	// "//extern " is for gccgo.
-	// "//export " is for cgo.
-	// (The // has been removed.)
-	if strings.HasPrefix(c, "line ") || strings.HasPrefix(c, "extern ") || strings.HasPrefix(c, "export ") {
-		return true
-	}
-
-	// "//[a-z0-9]+:[a-z0-9]"
-	// (The // has been removed.)
-	colon := strings.Index(c, ":")
-	if colon <= 0 || colon+1 >= len(c) {
-		return false
-	}
-	for i := 0; i <= colon+1; i++ {
-		if i == colon {
-			continue
-		}
-		b := c[i]
-		if !('a' <= b && b <= 'z' || '0' <= b && b <= '9') {
-			return false
-		}
-	}
-	return true
-}
-
 // ----------------------------------------------------------------------------
 // Expressions and types
 
@@ -194,11 +76,9 @@ func isDirective(c string) bool {
 // [Field.Names] is nil for unnamed parameters (parameter lists which only contain types)
 // and embedded struct fields. In the latter case, the field name is the type name.
 type Field struct {
-	Doc     *CommentGroup // associated documentation; or nil
-	Names   []*Name       // field/method/(type) parameter names; or nil
-	Type    Expr          // field/method/parameter type; or nil
-	Tag     *BasicLit     // field tag; or nil
-	Comment *CommentGroup // line comments; or nil
+	Names []*Name   // field/method/(type) parameter names; or nil
+	Type  Expr      // field/method/parameter type; or nil
+	Tag   *BasicLit // field tag; or nil
 }
 
 func (f *Field) Offset() tokens.Pos {
@@ -426,15 +306,6 @@ type (
 	}
 )
 
-// The direction of a channel type is indicated by a bit
-// mask including one or both of the following constants.
-type ChanDir int
-
-const (
-	SEND ChanDir = 1 << iota
-	RECV
-)
-
 // A type is represented by a tree consisting of one
 // or more of the following type-specific expression
 // nodes.
@@ -476,14 +347,6 @@ type (
 		Key   Expr
 		Value Expr
 	}
-
-	// A ChanType node represents a channel type.
-	ChanType struct {
-		Begin tokens.Pos // position of "chan" keyword or "<-" (whichever comes first)
-		Arrow tokens.Pos // position of "<-" (tokens.NoPos if there is no "<-")
-		Dir   ChanDir    // channel direction
-		Value Expr       // value type
-	}
 )
 
 // Pos and End implementations for expression/type nodes.
@@ -520,7 +383,6 @@ func (x *FuncType) Offset() tokens.Pos {
 }
 func (x *InterfaceType) Offset() tokens.Pos { return x.Interface }
 func (x *MapType) Offset() tokens.Pos       { return x.Map }
-func (x *ChanType) Offset() tokens.Pos      { return x.Begin }
 
 func (x *BadExpr) End() tokens.Pos { return x.To }
 func (x *Name) End() tokens.Pos    { return tokens.Pos(int(x.Pos) + len(x.Name)) }
@@ -554,7 +416,6 @@ func (x *FuncType) End() tokens.Pos {
 }
 func (x *InterfaceType) End() tokens.Pos { return x.Methods.End() }
 func (x *MapType) End() tokens.Pos       { return x.Value.End() }
-func (x *ChanType) End() tokens.Pos      { return x.Value.End() }
 
 // expr() ensures that only expression/type nodes can be
 // assigned to an Expr.
@@ -581,7 +442,6 @@ func (*StructType) expr()    {}
 func (*FuncType) expr()      {}
 func (*InterfaceType) expr() {}
 func (*MapType) expr()       {}
-func (*ChanType) expr()      {}
 
 // ----------------------------------------------------------------------------
 // Convenience functions for Idents
@@ -893,54 +753,28 @@ type (
 		specNode()
 	}
 
-	// An ImportSpec node represents a single package import.
-	ImportSpec struct {
-		Doc     *CommentGroup // associated documentation; or nil
-		Name    *Name         // local package name (including "."); or nil
-		Path    *BasicLit     // import path
-		Comment *CommentGroup // line comments; or nil
-		EndPos  tokens.Pos    // end of spec (overrides Path.Pos if nonzero)
-	}
-
 	// A ValueSpec node represents a constant or variable declaration
 	// (ConstSpec or VarSpec production).
 	//
 	ValueSpec struct {
-		Doc     *CommentGroup // associated documentation; or nil
-		Names   []*Name       // value names (len(Names) > 0)
-		Type    Expr          // value type; or nil
-		Values  []Expr        // initial values; or nil
-		Comment *CommentGroup // line comments; or nil
+		Names  []*Name // value names (len(Names) > 0)
+		Type   Expr    // value type; or nil
+		Values []Expr  // initial values; or nil
 	}
 
 	// A TypeSpec node represents a type declaration (TypeSpec production).
 	TypeSpec struct {
-		Doc        *CommentGroup // associated documentation; or nil
-		Name       *Name         // type name
-		TypeParams *FieldList    // type parameters; or nil
-		Assign     tokens.Pos    // position of '=', if any
-		Type       Expr          // *Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes
-		Comment    *CommentGroup // line comments; or nil
+		Name       *Name      // type name
+		TypeParams *FieldList // type parameters; or nil
+		Assign     tokens.Pos // position of '=', if any
+		Type       Expr       // *Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes
 	}
 )
 
 // Pos and End implementations for spec nodes.
 
-func (s *ImportSpec) Offset() tokens.Pos {
-	if s.Name != nil {
-		return s.Name.Offset()
-	}
-	return s.Path.Offset()
-}
 func (s *ValueSpec) Offset() tokens.Pos { return s.Names[0].Offset() }
 func (s *TypeSpec) Offset() tokens.Pos  { return s.Name.Offset() }
-
-func (s *ImportSpec) End() tokens.Pos {
-	if s.EndPos != 0 {
-		return s.EndPos
-	}
-	return s.Path.End()
-}
 
 func (s *ValueSpec) End() tokens.Pos {
 	if n := len(s.Values); n > 0 {
@@ -955,9 +789,8 @@ func (s *TypeSpec) End() tokens.Pos { return s.Type.End() }
 
 // specNode() ensures that only spec nodes can be
 // assigned to a Spec.
-func (*ImportSpec) specNode() {}
-func (*ValueSpec) specNode()  {}
-func (*TypeSpec) specNode()   {}
+func (*ValueSpec) specNode() {}
+func (*TypeSpec) specNode()  {}
 
 // A declaration is represented by one of the following declaration nodes.
 type (
@@ -981,21 +814,19 @@ type (
 	//	tokens.VAR     *ValueSpec
 	//
 	GenDecl struct { // 这是一个数组
-		Doc    *CommentGroup // associated documentation; or nil
-		TokPos tokens.Pos    // position of Tok
-		Tok    tokens.Token  // IMPORT, CONST, TYPE, or VAR
-		Lparen tokens.Pos    // position of '(', if any
+		TokPos tokens.Pos   // position of Tok
+		Tok    tokens.Token // IMPORT, CONST, TYPE, or VAR
+		Lparen tokens.Pos   // position of '(', if any
 		Specs  []Spec
 		Rparen tokens.Pos // position of ')', if any
 	}
 
 	// A FuncDecl node represents a function declaration.
 	FuncDecl struct {
-		Doc  *CommentGroup // associated documentation; or nil
-		Recv *FieldList    // receiver (methods); or nil (functions)
-		Name *Name         // function/method name
-		Type *FuncType     // function signature: type and value parameters, results, and position of "func" keyword
-		Body *BlockStmt    // function body; or nil for external (non-Go) function
+		Recv *FieldList // receiver (methods); or nil (functions)
+		Name *Name      // function/method name
+		Type *FuncType  // function signature: type and value parameters, results, and position of "func" keyword
+		Body *BlockStmt // function body; or nil for external (non-Go) function
 	}
 )
 
@@ -1025,111 +856,57 @@ func (*BadDecl) declNode()  {}
 func (*GenDecl) declNode()  {}
 func (*FuncDecl) declNode() {}
 
-// ----------------------------------------------------------------------------
-// Files and packages
-
-// A File node represents a Go source file.
-//
-// The Comments list contains all comments in the source file in order of
-// appearance, including the comments that are pointed to from other nodes
-// via Doc and Comment fields.
-//
-// For correct printing of source code containing comments (using packages
-// go/format and go/printer), special care must be taken to update comments
-// when a File's syntax tree is modified: For printing, comments are interspersed
-// between tokens based on their position. If syntax tree nodes are
-// removed or moved, relevant comments in their vicinity must also be removed
-// (from the [File.Comments] list) or moved accordingly (by updating their
-// positions). A [CommentMap] may be used to facilitate some of these operations.
-//
-// Whether and how a comment is associated with a node depends on the
-// interpretation of the syntax tree by the manipulating program: except for Doc
-// and [Comment] comments directly associated with nodes, the remaining comments
-// are "free-floating" (see also issues [#18593], [#20744]).
-//
-// [#18593]: https://go.dev/issue/18593
-// [#20744]: https://go.dev/issue/20744
 type File struct {
-	Doc     *CommentGroup // associated documentation; or nil
-	Package tokens.Pos    // position of "package" keyword
-	Name    *Name         // package name
-	Decls   []Decl        // top-level declarations; or nil
+	DeclList []Decl // top-level declarations; or nil
 
-	FileStart, FileEnd tokens.Pos      // start and end of entire file
-	Scope              *Scope          // package scope (this file only). Deprecated: see Object
-	Imports            []*ImportSpec   // imports in this file
-	Unresolved         []*Name         // unresolved identifiers in this file. Deprecated: see Object
-	Comments           []*CommentGroup // list of all comments in the source file
-	GoVersion          string          // minimum Go version required by //go:build or // +build directives
+	//FileStart, FileEnd tokens.Pos      // start and end of entire file
+	Scope      *Scope     // package scope (this file only). Deprecated: see Object
+	Imports    []*Package // imports in this file
+	Unresolved []*Name    // unresolved identifiers in this file. Deprecated: see Object
+	//Comments   []*CommentGroup // list of all comments in the source file
+	//GoVersion string // minimum Go version required by //go:build or // +build directives
 }
 
-// Pos returns the position of the package declaration.
-// It may be invalid, for example in an empty file.
-//
-// (Use FileStart for the start of the entire file. It is always valid.)
-func (f *File) Offset() tokens.Pos { return f.Package }
+type PkgName struct {
+	Pos  tokens.Pos // 位置信息
+	Name string     // 别名
+	Kind string     // 类型
+}
+
+// import ""
+// import default from ""
+// import {} // todo 暂时不支持解包
+
+type Package struct {
+	Pos  tokens.Pos // 位置信息
+	Name string     //
+	Path string     // import path
+}
 
 // End returns the end of the last declaration in the file.
 // It may be invalid, for example in an empty file.
 //
 // (Use FileEnd for the end of the entire file. It is always valid.)
-func (f *File) End() tokens.Pos {
-	if n := len(f.Decls); n > 0 {
-		return f.Decls[n-1].End()
-	}
-	return f.Name.End()
-}
+//func (f *File) End() tokens.Pos {
+//	if n := len(f.Decls); n > 0 {
+//		return f.Decls[n-1].End()
+//	}
+//	return f.Name.End()
+//}
 
 // A Package node represents a set of source files
 // collectively building a Go package.
 //
 // Deprecated: use the type checker [go/types] instead; see [Object].
-type Package struct {
-	Name    string             // package name
-	Scope   *Scope             // package scope across all files
-	Imports map[string]*Object // map of package id -> package object
-	Files   map[string]*File   // Go source files by filename
-}
-
-func (p *Package) Offset() tokens.Pos { return tokens.NoPos }
-func (p *Package) End() tokens.Pos    { return tokens.NoPos }
-
-// IsGenerated reports whether the file was generated by a program,
-// not handwritten, by detecting the special comment described
-// at https://go.dev/s/generatedcode.
+//type Package struct {
+//	Name    string             // package name
+//	Scope   *Scope             // package scope across all files
+//	Imports map[string]*Object // map of package id -> package object
+//	Files   map[string]*File   // Go source files by filename
+//}
 //
-// The syntax tree must have been parsed with the [parser.ParseComments] flag.
-// Example:
-//
-//	f, err := parser.ParseFile(fset, filename, src, parser.ParseComments|parser.PackageClauseOnly)
-//	if err != nil { ... }
-//	gen := ast.IsGenerated(f)
-func IsGenerated(file *File) bool {
-	_, ok := generator(file)
-	return ok
-}
-
-func generator(file *File) (string, bool) {
-	for _, group := range file.Comments {
-		for _, comment := range group.List {
-			if comment.Offset() > file.Package {
-				break // after package declaration
-			}
-			// opt: check Contains first to avoid unnecessary array allocation in Split.
-			const prefix = "// Code generated "
-			if strings.Contains(comment.Text, prefix) {
-				for _, line := range strings.Split(comment.Text, "\n") {
-					if rest, ok := strings.CutPrefix(line, prefix); ok {
-						if gen, ok := strings.CutSuffix(rest, " DO NOT EDIT."); ok {
-							return gen, true
-						}
-					}
-				}
-			}
-		}
-	}
-	return "", false
-}
+//func (p *Package) Offset() tokens.Pos { return tokens.NoPos }
+//func (p *Package) End() tokens.Pos    { return tokens.NoPos }
 
 // Unparen returns the expression with any enclosing parentheses removed.
 func Unparen(e Expr) Expr {

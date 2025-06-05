@@ -112,6 +112,7 @@ const (
 	GOTO
 	IF
 	IMPORT
+	FROM
 
 	INTERFACE
 	MAP
@@ -123,7 +124,7 @@ const (
 	STRUCT
 	SWITCH
 	TYPE
-	VAR
+	LET
 	keyword_end
 
 	additional_beg
@@ -219,6 +220,7 @@ var tokens = [...]string{
 	GOTO:   "goto",
 	IF:     "if",
 	IMPORT: "import",
+	FROM:   "from",
 
 	INTERFACE: "interface",
 	MAP:       "map",
@@ -230,7 +232,7 @@ var tokens = [...]string{
 	STRUCT: "struct",
 	SWITCH: "switch",
 	TYPE:   "type",
-	VAR:    "var",
+	LET:    "let",
 
 	TILDE: "~",
 }
@@ -364,7 +366,7 @@ func TokenLabel(token Token, ident string) string {
 //	STRING                          // "", ``
 //)
 //
-//var NameTable = [...]string{
+//LET NameTable = [...]string{
 //	ILLEGAL: "ILLEGAL",
 //
 //	EOF:     "EOF",
