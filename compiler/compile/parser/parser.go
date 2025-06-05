@@ -169,7 +169,7 @@ func (p *parser) importDecl() *ast.Package {
 
 // ConstSpec = IdentifierList [ [ Type ] "=" ExpressionList ] .
 func (p *parser) constDecl() ast.Decl {
-	d := new(ast.ConstDecl)
+	d := new(ast.GenDecl)
 	d.SetPos(p.Pos())
 
 	d.NameList = p.nameList(p.name())
