@@ -3,6 +3,7 @@ package parser
 import (
 	"github.com/facelang/face/compiler/compile/ast"
 	"github.com/facelang/face/compiler/compile/tokens"
+	"go/token"
 )
 
 // ----------------------------------------------------------------------------
@@ -54,9 +55,9 @@ func (p *parser) parseFuncTypeOrLit() ast.Expr {
 	return &ast.FuncLit{Type: typ, Body: body}
 }
 
-// parseOperand may return an expression or a raw type (incl. array
+// operand may return an expression or a raw type (incl. array
 // types of the form [...]T). Callers must verify the result.
-func (p *parser) parseOperand() ast.Expr {
+func operand(p *parser) ast.Expr {
 	switch p.token {
 	case tokens.IDENT: // 变量符号
 		x := p.name()
@@ -67,19 +68,20 @@ func (p *parser) parseOperand() ast.Expr {
 		p.next()
 		return x
 
-	case LPAREN: // (...) 多了一层优先级
-		lparen := p.FilePos
+	case tokens.LPAREN: // (...) 多了一层优先级
+		lparen := p.pos
 		p.next()
 		//p.exprLev++
 		x := p.parseRhs() // types may be parenthesized: (some type)
 		//p.exprLev--
-		rparen := p.expect(RPAREN)
+		rparen := p.expect(tokens.RPAREN)
 		return &ast.ParenExpr{Lparen: lparen, X: x, Rparen: rparen}
 
-	case FUNC: // func ...
+	case tokens.FUNC: // func ...
 		return p.parseFuncTypeOrLit()
 	}
 
+	// 类型转换 int(123), []string{"a", "b", "c"}
 	if typ := p.tryIdentOrType(); typ != nil { // do not consume trailing type parameters
 		// could be type for composite literal or conversion
 		_, isIdent := typ.(*ast.Ident)
@@ -97,24 +99,22 @@ func (p *parser) parseOperand() ast.Expr {
 // 语法解析中 x = nil !
 func (p *parser) parsePrimaryExpr(x ast.Expr) ast.Expr {
 	if x == nil {
-		x = p.parseOperand()
+		x = operand(p)
 	}
-	// We track the nesting here rather than at the entry for the function,
-	// since it can iteratively produce a nested output, and we want to
-	// limit how deep a structure we generate.
+
 	var n int
-	defer func() { p.nestLev -= n }()
-	for n = 1; ; n++ {
-		incNestLev(p)
-		switch p.tok {
-		case PERIOD:
+	//defer func() { p.nestLev -= n }()
+	for n = 1; ; n++ { // 持续++
+		//incNestLev(p)
+		switch p.token {
+		case tokens.PERIOD: // x.
 			p.next()
-			switch p.tok {
-			case IDENT:
+			switch p.token {
+			case tokens.IDENT: // x.sel
 				x = p.parseSelector(x)
-			case LPAREN:
+			case tokens.LPAREN: // x.(type)
 				x = p.parseTypeAssertion(x)
-			default:
+			default: // 报错
 				pos := p.pos
 				p.errorExpected(pos, "selector or type assertion")
 				// TODO(rFindley) The check for RBRACE below is a targeted fix
@@ -122,23 +122,23 @@ func (p *parser) parsePrimaryExpr(x ast.Expr) ast.Expr {
 				//                pass with the new parsing logic introduced for type
 				//                parameters. Remove this once error recovery has been
 				//                more generally reconsidered.
-				if p.tok != RBRACE {
+				if p.token != tokens.RBRACE {
 					p.next() // make progress
 				}
-				sel := &ast.Ident{NamePos: pos, Name: "_"}
+				sel := &ast.Name{Pos: pos, Name: "_"}
 				x = &ast.SelectorExpr{X: x, Sel: sel}
 			}
-		case LBRACK:
+		case tokens.LBRACK: // x[...], x[1], x[:]
 			x = p.parseIndexOrSliceOrInstance(x)
-		case LPAREN:
+		case tokens.LPAREN: // x(...), 函数调用
 			x = p.parseCallOrConversion(x)
-		case LBRACE:
+		case tokens.LBRACE: // todo {} 什么意思？
 			// operand may have returned a parenthesized complit
 			// type; accept it but complain if we have a complit
-			t := ast.Unparen(x)
+			t := ast.Unparen(x) // 解包？
 			// determine if '{' belongs to a composite literal or a block statement
 			switch t.(type) {
-			case *ast.BadExpr, *ast.Ident, *ast.SelectorExpr:
+			case *ast.BadExpr, *ast.Name, *ast.SelectorExpr:
 				if p.exprLev < 0 {
 					return x
 				}
@@ -168,8 +168,8 @@ func (p *parser) parseUnaryExpr() ast.Expr {
 	//defer decNestLev(incNestLev(p))
 
 	switch p.token {
-	case ADD, SUB, NOT, XOR, AND, TILDE: // +, -, !, ^， ~
-		pos, op := p.FilePos, p.token
+	case tokens.ADD, tokens.SUB, tokens.NOT, tokens.XOR, tokens.AND, tokens.TILDE: // +, -, !, ^， ~
+		pos, op := p.pos, p.token
 		p.next()
 		x := p.parseUnaryExpr() // 再解析...
 		return &ast.UnaryExpr{OpPos: pos, Op: op, X: x}
@@ -231,10 +231,10 @@ func (p *parser) parseUnaryExpr() ast.Expr {
 	return p.parsePrimaryExpr(nil) // 更低级表达式
 }
 
-func (p *parser) tokPrec() (Token, int) {
+func (p *parser) tokPrec() (tokens.Token, int) {
 	tok := p.token
-	if p.inRhs && tok == ASSIGN {
-		tok = EQL
+	if p.inRhs && tok == tokens.ASSIGN {
+		tok = tokens.EQL
 	}
 	return tok, tok.Precedence() // 这个应该是优先级
 }
