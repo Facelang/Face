@@ -267,16 +267,16 @@ const (
 // is LowestPrecedence.
 func (op Token) Precedence() int {
 	switch op {
-	case LOR:
+	case LOR: // ||
 		return 1
 	case LAND:
-		return 2
+		return 2 // &&
 	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
-		return 3
+		return 3 // 逻辑运算
 	case ADD, SUB, OR, XOR:
-		return 4
+		return 4 // +-|^
 	case MUL, QUO, REM, SHL, SHR, AND, AND_NOT:
-		return 5
+		return 5 // */% << >> & &^
 	}
 	return LowestPrec
 }

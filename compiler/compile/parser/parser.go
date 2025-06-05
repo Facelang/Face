@@ -11,7 +11,8 @@ type parser struct {
 	token   tokens.Token  // 符号
 	literal string        // 字面量
 	errors  ast.ErrorList // 异常列表
-	inRhs   bool          // if set, the parser is parsing a rhs expression
+	inRhs   bool          // 是否右值表达式
+	nestLev int           // 递归嵌套计数器
 }
 
 //func (p *parser) nextToken() tokens.Token {
