@@ -3,16 +3,15 @@ package parser
 import (
 	"fmt"
 	"github.com/facelang/face/compiler/compile/ast"
-	"github.com/facelang/face/compiler/compile/tokens"
+	"github.com/facelang/face/compiler/compile/token"
 )
 
 type parser struct {
-	*lexer                // 符号读取器
-	token   tokens.Token  // 符号
-	literal string        // 字面量
-	errors  ast.ErrorList // 异常列表
-	inRhs   bool          // 是否右值表达式
-	nestLev int           // 递归嵌套计数器
+	*lexer              // 符号读取器
+	token   token.Token // 符号
+	literal string      // 字面量
+	inRhs   bool        // 是否右值表达式
+	nestLev int         // 递归嵌套计数器
 }
 
 //func (p *parser) nextToken() tokens.Token {
@@ -33,17 +32,17 @@ func (p *parser) next() {
 	for {
 		p.token = p.NextToken()
 		p.literal += p.identifier
-		if p.token == tokens.COMMENT {
+		if p.token == token.COMMENT {
 			continue
 		}
-		if p.token == tokens.NEWLINE {
+		if p.token == token.NEWLINE {
 			continue
 		}
 		break
 	}
 }
 
-func (p *parser) got(token tokens.Token) bool {
+func (p *parser) got(token token.Token) bool {
 	if p.token == token {
 		p.next()
 		return true
@@ -51,18 +50,19 @@ func (p *parser) got(token tokens.Token) bool {
 	return false
 }
 
-func (p *parser) error(pos tokens.Pos, msg string) {
-	if p.errors.Len() > 10 {
-		panic(p.errors)
-	}
-	p.errors.Add(pos, msg)
+func (p *parser) error(pos token.Pos, msg string) {
+	//if p.errors.Len() > 10 {
+	//	panic(p.errors)
+	//}
+	//p.errors.Add(pos, msg)
+	panic(fmt.Errorf("%s:%d:%d: %s", pos, p.literal, pos, msg))
 }
 
 func (p *parser) errorf(format string, args ...interface{}) {
-	p.errors.Add(p.pos, fmt.Sprintf(format, args...))
+	//p.errors.Add(p.pos, fmt.Sprintf(format, args...))
 }
 
-func (p *parser) expect(token tokens.Token) tokens.Pos {
+func (p *parser) expect(token token.Token) token.Pos {
 	pos := p.pos
 	if p.token != token {
 		p.unexpect(token.String())
@@ -73,53 +73,8 @@ func (p *parser) expect(token tokens.Token) tokens.Pos {
 }
 
 func (p *parser) unexpect(except string) {
-	found := tokens.TokenLabel(p.token, p.identifier)
+	found := token.TokenLabel(p.token, p.identifier)
 	p.errorf("except %s, found %s", except, found)
-}
-
-// expectClosing is like expect but provides a better error message
-// for the common case of a missing comma before a newline.
-func (p *parser) expectClosing(token tokens.Token, context string) tokens.Pos {
-	//if p.token != token && p.token == SEMICOLON && p.literal == "\n" {
-	if p.token != token && p.token == tokens.NEWLINE {
-		p.error(p.pos, "missing ',' before newline in "+context)
-		p.next()
-	}
-	return p.expect(token)
-}
-
-// expectSemi consumes a semicolon and returns the applicable line comment.
-func (p *parser) expectSemi() (comment *ast.CommentGroup) {
-	// semicolon is optional before a closing ')' or '}'
-	if p.token != RPAREN && p.token != RBRACE {
-		switch p.token {
-		case COMMA:
-			// permit a ',' instead of a ';' but complain
-			p.errorExpected(p.Pos, "';'")
-			fallthrough
-		case SEMICOLON:
-			p.next()
-			return comment
-		default:
-			p.errorExpected(p.Pos, "';'")
-			p.advance(stmtStart)
-		}
-	}
-	return nil
-}
-
-// gotAssign is like got(_Assign) but it also accepts ":="
-// (and reports an error) for better parser error recovery.
-func (p *parser) gotAssign() bool {
-	switch p.tok {
-	case _Define:
-		p.syntaxError("expected =")
-		fallthrough
-	case _Assign:
-		p.next()
-		return true
-	}
-	return false
 }
 
 // ----------------------------------------------------------------------------
@@ -127,7 +82,7 @@ func (p *parser) gotAssign() bool {
 
 // name = identifier .
 func (p *parser) name() *ast.Name {
-	if p.token != tokens.IDENT {
+	if p.token != token.IDENT {
 		p.unexpect("identifier")
 	}
 
@@ -142,7 +97,7 @@ func (p *parser) name() *ast.Name {
 // nameList = name { "," name } .
 func (p *parser) nameList(name *ast.Name) []*ast.Name {
 	list := []*ast.Name{name}
-	for p.token == tokens.COMMA {
+	for p.token == token.COMMA {
 		p.next()
 		list = append(list, p.name())
 	}
@@ -153,101 +108,78 @@ func (p *parser) nameList(name *ast.Name) []*ast.Name {
 // 暂不支持解包，只支持两种语法：
 // import name from ""
 // import ""
-func (p *parser) importDecl() *ast.Package {
-	d := new(ast.Package)
-	d.Pos = p.expect(tokens.IMPORT)
+func (p *parser) pkg() *ast.Package {
+	d := &ast.Package{Pos: p.expect(token.IMPORT)}
 
-	if p.token == tokens.IDENT {
+	if p.token == token.IDENT {
 		d.Name = p.literal
-		p.expect(tokens.FROM)
+		p.expect(token.FROM)
 	}
 
 	d.Path = p.literal
-
 	return d
 }
 
-// ConstSpec = IdentifierList [ [ Type ] "=" ExpressionList ] .
-func (p *parser) constDecl() ast.Decl {
-	d := new(ast.GenDecl)
-	d.Pos = p.expect(tokens.COMMENT)
+// const name1, name2, ... type = val1, val2, ...
+// let name1, name2, ... type = val1, val2, ...
+func (p *parser) genDecl(require token.Token) ast.Decl {
+	d := &ast.GenDecl{Pos: p.expect(require), Token: require}
 
 	d.Names = p.nameList(p.name())
-	if p.token != tokens.EOF && p.token != tokens.SEMICOLON && p.token != tokens.RPAREN {
-		d.Type = p.typeOrNil()
-		if p.gotAssign() {
-			d.Values = p.exprList()
+	if p.token != token.EOF && p.token != token.SEMICOLON && p.token != token.RPAREN {
+		d.Type = p.tryIdentOrType()
+		if p.token == token.ASSIGN {
+			p.next()
+			d.Values = exprList(p, true)
 		}
 	}
 
 	return d
 }
 
-// VarSpec = IdentifierList ( Type [ "=" ExpressionList ] | "=" ExpressionList ) .
-func (p *parser) letDecl() ast.Decl {
-	d := new(ast.VarDecl)
-	d.pos = p.pos()
+func (p *parser) funcDecl() ast.Decl {
+	pos := p.expect(token.FUNC)
+	name := p.name()
 
-	d.NameList = p.nameList(p.name())
-	if p.gotAssign() { // 没有类型
-		d.Values = p.exprList()
-	} else { // 有类型
-		d.Type = RequireType(p)
-		if p.gotAssign() {
-			d.Values = p.exprList()
-		}
+	// 参数列表，包括泛型参数
+	_, params := p.parseParameters(true)
+
+	results := p.parseResult() // (...) 返回结果
+
+	var body *ast.BlockStmt
+	switch p.token {
+	case token.LBRACE: // {}
+		body = p.parseBody()
+	case token.ASSIGN:
+	// todo 单行表达式
+	default:
+		// 第二种情况： func func2(a, b int) [int] = a + b
+		// 第三种情况： const func3 = (a, b) => a + b
+		// 				const func4 = func() {}
+		//				const func5 = func4 别名
+		panic("函数声明 func name(){} 或者 func name() = express")
 	}
 
-	return d
+	return &ast.FuncDecl{
+		Pos:  pos,
+		Name: name,
+		Type: &ast.FuncType{
+			Params:  params,
+			Results: results,
+		},
+		Body: body,
+	}
 }
 
 // TypeDecl = "type" ( TypeSpec | "(" { TypeSpec ";" } ")" ) .
 func (p *parser) typeDecl() ast.Decl {
-	d := new(ast.TypeDecl)
-	d.SetPos(p.Pos())
+	d := &ast.TypeDecl{Pos: p.expect(token.TYPE), Name: p.name()}
 
-	// 解析类型名称
-	d.Name = p.name()
-
-	// 解析类型定义
-	if p.token == tokens.ASSIGN {
-		p.next()
-		d.Type = p.typeOrNil()
-	} else {
-		p.error(p.Pos, "类型声明需要指定类型定义")
+	if p.token == token.ASSIGN {
+		d.Assign = p.expect(p.token)
 	}
 
-	return d
-}
-
-// FuncDecl = "func" FunctionName Signature [ FunctionBody ] .
-// FunctionName = identifier .
-// Signature = Parameters [ Result ] .
-// Result = Parameters | Type .
-func (p *parser) funcDecl() ast.Decl {
-	d := new(ast.FuncDecl)
-	d.SetPos(p.Pos())
-
-	// 解析函数名
-	d.Name = p.name()
-
-	// 解析参数列表
-	if p.token == tokens.LPAREN {
-		p.next()
-		d.Params = p.paramList()
-		p.expect(tokens.RPAREN)
-	}
-
-	// 解析返回值类型
-	if p.token != tokens.LBRACE {
-		d.Result = p.typeOrNil()
-	}
-
-	// 解析函数体
-	if p.token == tokens.LBRACE {
-		p.next()
-		d.Body = p.blockStmt()
-	}
+	d.Type = p.parseType()
 
 	return d
 }
@@ -256,29 +188,24 @@ func (p *parser) funcDecl() ast.Decl {
 func (p *parser) parseFile() *ast.File {
 	f := new(ast.File)
 
-	prev := tokens.EOF
-	for p.token != tokens.EOF {
+	prev := token.EOF
+	for p.token != token.EOF {
 		prev = p.token
 
 		switch p.token {
-		case tokens.IMPORT:
-			if prev != tokens.IMPORT {
+		case token.IMPORT:
+			if prev != token.IMPORT {
 				p.error(p.pos, "import 语法只能出现在文件头部！")
 			}
-			p.next()
-			f.Imports = append(f.Imports, p.importDecl())
-		case tokens.CONST:
-			p.next()
-			f.DeclList = append(f.DeclList, p.constDecl())
-		case tokens.LET:
-			p.next()
-			f.DeclList = append(f.DeclList, p.letDecl())
-		case tokens.TYPE:
-			p.next()
-			f.DeclList = append(f.DeclList, p.typeDecl())
-		case tokens.FUNC:
+			f.Imports = append(f.Imports, p.pkg())
+		case token.CONST, token.LET:
+			f.DeclList = append(f.DeclList, p.genDecl(p.token))
+		case token.FUNC:
 			p.next()
 			f.DeclList = append(f.DeclList, p.funcDecl())
+		case token.TYPE:
+			p.next()
+			f.DeclList = append(f.DeclList, p.typeDecl())
 		default:
 			p.error(p.pos, "顶层语法仅支持 const, let, type, func 关键字定义！")
 		}
@@ -287,9 +214,17 @@ func (p *parser) parseFile() *ast.File {
 	return f
 }
 
+func (p *parser) parseBody() *ast.BlockStmt {
+	lbrace := p.expect(token.LBRACE) // {
+	list := p.parseStmtList()
+	rbrace := p.expect(token.RBRACE) // }
+
+	return &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
+}
+
 // gotAssign = "=" .
 func (p *parser) gotAssign() bool {
-	if p.token == tokens.ASSIGN {
+	if p.token == token.ASSIGN {
 		p.next()
 		return true
 	}
@@ -301,7 +236,7 @@ func (p *parser) exprList() []*internal.ProgDec {
 	var list []*internal.ProgDec
 	var vn int
 	list = append(list, internal.expr(p, &vn))
-	for p.token == tokens.COMMA {
+	for p.token == token.COMMA {
 		p.next()
 		list = append(list, internal.expr(p, &vn))
 	}
@@ -312,7 +247,7 @@ func (p *parser) exprList() []*internal.ProgDec {
 func (p *parser) paramList() []*ast.ParamDecl {
 	var list []*ast.ParamDecl
 	list = append(list, p.paramDecl())
-	for p.token == tokens.COMMA {
+	for p.token == token.COMMA {
 		p.next()
 		list = append(list, p.paramDecl())
 	}
@@ -335,10 +270,10 @@ func (p *parser) blockStmt() *ast.BlockStmt {
 	s := new(ast.BlockStmt)
 	s.SetPos(p.Pos())
 
-	for p.token != tokens.RBRACE && p.token != tokens.EOF {
+	for p.token != token.RBRACE && p.token != token.EOF {
 		s.List = append(s.List, p.stmt())
 	}
 
-	p.expect(tokens.RBRACE)
+	p.expect(token.RBRACE)
 	return s
 }

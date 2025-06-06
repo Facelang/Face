@@ -11,7 +11,7 @@ import (
 // let c classA = {a: 1, b: 2, c: 3}
 
 // ParamOrNil = [ IdentifierList ] [ "..." ] Type . 只在参数列表中调用 follow=close
-func ParamOrNil(p *parser, name *prog.Name, follow tokens.Token) *prog.Field {
+func ParamOrNil(p *parser, name *prog.Name, follow token.Token) *prog.Field {
 
 	pos := p.FilePos
 	if name != nil {
@@ -21,7 +21,7 @@ func ParamOrNil(p *parser, name *prog.Name, follow tokens.Token) *prog.Field {
 	f := new(prog.Field)
 	f.pos = pos
 
-	if p.token == tokens.IDENT || name != nil {
+	if p.token == token.IDENT || name != nil {
 		// name
 		if name == nil {
 			name = p.name()
@@ -88,7 +88,7 @@ func ParamOrNil(p *parser, name *prog.Name, follow tokens.Token) *prog.Field {
 // In the result list, either all fields have a name, or no field has a name.
 
 // p.paramList(nil, nil, _Rbrack, true)
-func paramList(p *parser, close tokens.Token, requireNames bool) (list []*Field) {
+func paramList(p *parser, close token.Token, requireNames bool) (list []*Field) {
 
 	var named int // number of parameters that have an explicit name and type
 	var typed int // number of parameters that have an explicit type
@@ -182,10 +182,10 @@ func paramList(p *parser, close tokens.Token, requireNames bool) (list []*Field)
 	return
 }
 
-func (p *parser) list(context string, sep, close tokens.Token, f func() bool) prog.FilePos {
+func (p *parser) list(context string, sep, close token.Token, f func() bool) prog.FilePos {
 	done := false
 
-	for p.token != tokens.EOF && p.token != close && !done {
+	for p.token != token.EOF && p.token != close && !done {
 		done = f()
 
 		if !p.got(sep) && p.token != close {

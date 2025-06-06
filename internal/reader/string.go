@@ -38,6 +38,16 @@ func RawString(r *Reader) string {
 	return r.ReadText()
 }
 
+// Comment 单行注释
+func Comment(r *Reader) string {
+	ch, ok := r.ReadByte() // read character after "//"
+	for ok && ch != '\n' {
+		ch, ok = r.ReadByte()
+	}
+	r.GoBack()
+	return r.ReadText()
+}
+
 // 处理转义字符
 func escape(r *Reader, quote byte) byte {
 	ch, _ := r.ReadByte() // read character after '/'

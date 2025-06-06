@@ -54,7 +54,7 @@ func FuncType(p *parser, context string) ([]*prog.Field, *prog.FuncType) {
 func TypeOrNil(p *parser) prog.Expr {
 	//defer decNestLev(incNestLev(p)) // 递归统计，避免递归太深
 	switch p.token {
-	case tokens.IDENT:
+	case token.IDENT:
 		typ := p.parseTypeName(nil)
 		if p.tok == token.LBRACK {
 			typ = p.parseTypeInstance(typ)
@@ -105,19 +105,19 @@ func RequireType(p *parser) prog.Expr {
 */
 
 func (p *parser) parseTypeInstance(typ ast.Expr) ast.Expr {
-	opening := p.expect(tokens.LBRACK) // [
+	opening := p.expect(token.LBRACK) // [
 	//p.exprLev++
 	var list []ast.Expr
-	for p.token != tokens.RBRACK && p.token != tokens.EOF {
+	for p.token != token.RBRACK && p.token != token.EOF {
 		list = append(list, p.parseType())
-		if p.token != tokens.COMMA {
+		if p.token != token.COMMA {
 			break
 		}
 		p.next()
 	}
 	//p.exprLev--
 
-	closing := p.expect(tokens.RBRACK) // ]
+	closing := p.expect(token.RBRACK) // ]
 
 	if len(list) == 0 {
 		p.unexpect("type argument list")
@@ -138,7 +138,7 @@ func (p *parser) parseTypeName(ident *ast.Name) ast.Expr {
 		ident = p.name()
 	}
 
-	if p.token == tokens.PERIOD {
+	if p.token == token.PERIOD {
 		p.next()
 		sel := p.name()
 		return &ast.SelectorExpr{X: ident, Sel: sel}
@@ -149,38 +149,38 @@ func (p *parser) parseTypeName(ident *ast.Name) ast.Expr {
 
 // "[" has already been consumed, and lbrack is its position.
 // If len != nil it is the already consumed array length.
-func (p *parser) parseArrayType(lbrack tokens.Pos, len ast.Expr) *ast.ArrayType {
+func (p *parser) parseArrayType(lbrack token.Pos, len ast.Expr) *ast.ArrayType {
 
 	if len == nil { // 没有解析 [x] 中间的参数
 		//p.exprLev++
 		// always permit ellipsis for more fault-tolerant parsing
-		if p.token == tokens.ELLIPSIS { // [...]
+		if p.token == token.ELLIPSIS { // [...]
 			len = &ast.Ellipsis{Ellipsis: p.pos}
 			p.next()
-		} else if p.token != tokens.RBRACK { // [len]
+		} else if p.token != token.RBRACK { // [len]
 			len = exprRhs(p)
 		}
 		// len 可能为 nil
 		//p.exprLev--
 	}
-	if p.token == tokens.COMMA { // , 不应该出现
+	if p.token == token.COMMA { // , 不应该出现
 		// Trailing commas are accepted in type parameter
 		// lists but not in array type declarations.
 		// Accept for better error handling but complain.
 		p.error(p.pos, "unexpected comma; expecting ]")
 		p.next()
 	}
-	p.expect(tokens.RBRACK) // ] 结束符
-	elt := p.parseType()    // 可能是多维数组
+	p.expect(token.RBRACK) // ] 结束符
+	elt := p.parseType()   // 可能是多维数组
 	return &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
 }
 
 func (p *parser) parseMapType() *ast.MapType {
-	pos := p.expect(tokens.MAP) // map
-	p.expect(tokens.LBRACK)     // [
-	key := p.parseType()        // keyType
-	p.expect(tokens.RBRACK)     // ]
-	value := p.parseType()      // valType
+	pos := p.expect(token.MAP) // map
+	p.expect(token.LBRACK)     // [
+	key := p.parseType()       // keyType
+	p.expect(token.RBRACK)     // ]
+	value := p.parseType()     // valType
 
 	return &ast.MapType{Map: pos, Key: key, Value: value}
 }
@@ -188,7 +188,7 @@ func (p *parser) parseMapType() *ast.MapType {
 func (p *parser) parseQualifiedIdent(ident *ast.Name) ast.Expr {
 
 	typ := p.parseTypeName(ident)
-	if p.token == tokens.LBRACK {
+	if p.token == token.LBRACK {
 		typ = p.parseTypeInstance(typ)
 	}
 
@@ -196,16 +196,16 @@ func (p *parser) parseQualifiedIdent(ident *ast.Name) ast.Expr {
 }
 
 func (p *parser) parseArrayFieldOrTypeInstance(x *ast.Name) (*ast.Name, ast.Expr) {
-	lbrack := p.expect(tokens.LBRACK)
-	trailingComma := tokens.NoPos // if valid, the position of a trailing comma preceding the ']'
+	lbrack := p.expect(token.LBRACK)
+	trailingComma := token.NoPos // if valid, the position of a trailing comma preceding the ']'
 	var args []ast.Expr
-	if p.token != tokens.RBRACK {
+	if p.token != token.RBRACK {
 		//p.exprLev++
 		args = append(args, exprRhs(p))
-		for p.token == tokens.COMMA {
+		for p.token == token.COMMA {
 			comma := p.pos
 			p.next()
-			if p.token == tokens.RBRACK {
+			if p.token == token.RBRACK {
 				trailingComma = comma
 				break
 			}
@@ -213,7 +213,7 @@ func (p *parser) parseArrayFieldOrTypeInstance(x *ast.Name) (*ast.Name, ast.Expr
 		}
 		//p.exprLev--
 	}
-	rbrack := p.expect(tokens.RBRACK)
+	rbrack := p.expect(token.RBRACK)
 
 	if len(args) == 0 {
 		// x []E
@@ -246,26 +246,26 @@ func (p *parser) parseFieldDecl() *ast.Field {
 	var names []*ast.Name
 	var typ ast.Expr
 	switch p.token {
-	case tokens.IDENT: // 先解析字段名
+	case token.IDENT: // 先解析字段名
 		name := p.name()
-		if p.token == tokens.PERIOD || p.token == tokens.STRING || p.token == tokens.SEMICOLON || p.token == tokens.RBRACE {
+		if p.token == token.PERIOD || p.token == token.STRING || p.token == token.SEMICOLON || p.token == token.RBRACE {
 			// embedded type
 			// 继续解析 name.   . "" ; }
 			typ = name
-			if p.token == tokens.PERIOD {
+			if p.token == token.PERIOD {
 				typ = p.parseQualifiedIdent(name)
 			}
 		} else { // 其它符号
 			// name1, name2, ... T
 			names = []*ast.Name{name}
-			for p.token == tokens.COMMA { // struct { a, b, c int }
+			for p.token == token.COMMA { // struct { a, b, c int }
 				p.next()
 				names = append(names, p.name())
 			}
 			// Careful dance: We don't know if we have an embedded instantiated
 			// type T[P1, P2, ...] or a field T of array type []E or [P]E.
 			// { a }
-			if len(names) == 1 && p.token == tokens.LBRACK {
+			if len(names) == 1 && p.token == token.LBRACK {
 				name, typ = p.parseArrayFieldOrTypeInstance(name) // todo
 				if name == nil {
 					names = nil
@@ -275,16 +275,16 @@ func (p *parser) parseFieldDecl() *ast.Field {
 				typ = p.parseType()
 			}
 		}
-	case tokens.MUL:
+	case token.MUL:
 		star := p.pos
 		p.next()
-		if p.token == tokens.LPAREN {
+		if p.token == token.LPAREN {
 			// *(T)
 			p.error(p.pos, "cannot parenthesize embedded type")
 			p.next()
 			typ = p.parseQualifiedIdent(nil)
 			// expect closing ')' but no need to complain if missing
-			if p.token == tokens.RPAREN {
+			if p.token == token.RPAREN {
 				p.next()
 			}
 		} else {
@@ -293,10 +293,10 @@ func (p *parser) parseFieldDecl() *ast.Field {
 		}
 		typ = &ast.StarExpr{Star: star, X: typ}
 
-	case tokens.LPAREN:
+	case token.LPAREN:
 		p.error(p.pos, "cannot parenthesize embedded type")
 		p.next()
-		if p.token == tokens.MUL {
+		if p.token == token.MUL {
 			// (*T)
 			star := p.pos
 			p.next()
@@ -306,7 +306,7 @@ func (p *parser) parseFieldDecl() *ast.Field {
 			typ = p.parseQualifiedIdent(nil)
 		}
 		// expect closing ')' but no need to complain if missing
-		if p.token == tokens.RPAREN {
+		if p.token == token.RPAREN {
 			p.next()
 		}
 
@@ -317,7 +317,7 @@ func (p *parser) parseFieldDecl() *ast.Field {
 	}
 
 	var tag *ast.BasicLit
-	if p.token == tokens.STRING {
+	if p.token == token.STRING {
 		tag = &ast.BasicLit{Pos: p.pos, Kind: p.token, Value: p.identifier}
 		p.next()
 	}
@@ -327,16 +327,16 @@ func (p *parser) parseFieldDecl() *ast.Field {
 }
 
 func (p *parser) parseStructType() *ast.StructType {
-	pos := p.expect(tokens.STRUCT) // struct {}
-	lbrace := p.expect(tokens.LBRACE)
+	pos := p.expect(token.STRUCT) // struct {}
+	lbrace := p.expect(token.LBRACE)
 	var list []*ast.Field
-	for p.token == tokens.IDENT || p.token == tokens.MUL || p.token == tokens.LPAREN {
+	for p.token == token.IDENT || p.token == token.MUL || p.token == token.LPAREN {
 		// a field declaration cannot start with a '(' but we accept
 		// it here for more robust parsing and better error messages
 		// (parseFieldDecl will check and complain if necessary)
 		list = append(list, p.parseFieldDecl())
 	}
-	rbrace := p.expect(tokens.RBRACE)
+	rbrace := p.expect(token.RBRACE)
 
 	return &ast.StructType{
 		Struct: pos,
@@ -349,7 +349,7 @@ func (p *parser) parseStructType() *ast.StructType {
 }
 
 func (p *parser) parsePointerType() *ast.StarExpr {
-	star := p.expect(tokens.MUL)
+	star := p.expect(token.MUL)
 	base := p.parseType()
 
 	return &ast.StarExpr{Star: star, X: base}
@@ -361,20 +361,20 @@ func (p *parser) parseMethodSpec() *ast.Field {
 	x := p.parseTypeName(nil)
 	if ident, _ := x.(*ast.Name); ident != nil {
 		switch {
-		case p.token == tokens.LBRACK:
+		case p.token == token.LBRACK:
 			// generic method or embedded instantiated type
 			lbrack := p.pos
 			p.next()
 			//p.exprLev++
 			x := expr(p)
 			//p.exprLev--
-			if name0, _ := x.(*ast.Name); name0 != nil && p.token != tokens.COMMA && p.token != tokens.RBRACK {
+			if name0, _ := x.(*ast.Name); name0 != nil && p.token != token.COMMA && p.token != token.RBRACK {
 				// generic method m[T any]
 				//
 				// Interface methods do not have type parameters. We parse them for a
 				// better error message and improved error recovery.
-				_ = p.parseParameterList(name0, nil, tokens.RBRACK)
-				_ = p.expect(tokens.RBRACK)
+				_ = p.parseParameterList(name0, nil, token.RBRACK)
+				_ = p.expect(token.RBRACK)
 				p.error(lbrack, "interface method must have no type parameters")
 
 				// TODO(rfindley) refactor to share code with parseFuncType.
@@ -382,7 +382,7 @@ func (p *parser) parseMethodSpec() *ast.Field {
 				results := p.parseResult()
 				idents = []*ast.Name{ident}
 				typ = &ast.FuncType{
-					Func:    tokens.NoPos,
+					Func:    token.NoPos,
 					Params:  params,
 					Results: results,
 				}
@@ -390,28 +390,28 @@ func (p *parser) parseMethodSpec() *ast.Field {
 				// embedded instantiated type
 				// TODO(rfindley) should resolve all identifiers in x.
 				list := []ast.Expr{x}
-				if p.token == tokens.COMMA {
+				if p.token == token.COMMA {
 					//p.exprLev++
 					p.next()
-					for p.token != tokens.RBRACK && p.token != tokens.EOF {
+					for p.token != token.RBRACK && p.token != token.EOF {
 						list = append(list, p.parseType())
-						if p.token != tokens.COMMA {
+						if p.token != token.COMMA {
 							break
 						}
 						p.next()
 					}
 					//p.exprLev--
 				}
-				rbrack := p.expectClosing(tokens.RBRACK, "type argument list")
+				rbrack := p.expectClosing(token.RBRACK, "type argument list")
 				typ = packIndexExpr(ident, lbrack, list, rbrack)
 			}
-		case p.token == tokens.LPAREN:
+		case p.token == token.LPAREN:
 			// ordinary method
 			// TODO(rfindley) refactor to share code with parseFuncType.
 			_, params := p.parseParameters(false)
 			results := p.parseResult()
 			idents = []*ast.Ident{ident}
-			typ = &ast.FuncType{Func: tokens.NoPos, Params: params, Results: results}
+			typ = &ast.FuncType{Func: token.NoPos, Params: params, Results: results}
 		default:
 			// embedded type
 			typ = x
@@ -419,7 +419,7 @@ func (p *parser) parseMethodSpec() *ast.Field {
 	} else {
 		// embedded, possibly instantiated type
 		typ = x
-		if p.token == tokens.LBRACK {
+		if p.token == token.LBRACK {
 			// embedded instantiated interface
 			typ = p.parseTypeInstance(typ)
 		}
@@ -432,10 +432,10 @@ func (p *parser) embeddedElem(x ast.Expr) ast.Expr {
 	if x == nil {
 		x = p.embeddedTerm()
 	}
-	for p.token == tokens.OR {
+	for p.token == token.OR {
 		t := new(ast.BinaryExpr)
 		t.OpPos = p.pos
-		t.Op = tokens.OR
+		t.Op = token.OR
 		p.next()
 		t.X = x
 		t.Y = p.embeddedTerm()
@@ -445,10 +445,10 @@ func (p *parser) embeddedElem(x ast.Expr) ast.Expr {
 }
 
 func (p *parser) embeddedTerm() ast.Expr {
-	if p.token == tokens.TILDE {
+	if p.token == token.TILDE {
 		t := new(ast.UnaryExpr)
 		t.OpPos = p.pos
-		t.Op = tokens.TILDE
+		t.Op = token.TILDE
 		p.next()
 		t.X = p.parseType()
 		return t
@@ -465,22 +465,22 @@ func (p *parser) embeddedTerm() ast.Expr {
 }
 
 func (p *parser) parseInterfaceType() *ast.InterfaceType {
-	pos := p.expect(tokens.INTERFACE) // interface {}
-	lbrace := p.expect(tokens.LBRACE)
+	pos := p.expect(token.INTERFACE) // interface {}
+	lbrace := p.expect(token.LBRACE)
 
 	var list []*ast.Field
 
 parseElements:
 	for {
 		switch {
-		case p.token == tokens.IDENT: // 只能声明函数
+		case p.token == token.IDENT: // 只能声明函数
 			f := p.parseMethodSpec()
 			if f.Names == nil {
 				f.Type = p.embeddedElem(f.Type)
 			}
 			f.Comment = p.expectSemi()
 			list = append(list, f)
-		case p.token == tokens.TILDE:
+		case p.token == token.TILDE:
 			typ := p.embeddedElem(nil)
 			comment := p.expectSemi()
 			list = append(list, &ast.Field{Type: typ, Comment: comment})
@@ -497,7 +497,7 @@ parseElements:
 
 	// TODO(rfindley): the error produced here could be improved, since we could
 	// accept an identifier, 'type', or a '}' at this point.
-	rbrace := p.expect(tokens.RBRACE)
+	rbrace := p.expect(token.RBRACE)
 
 	return &ast.InterfaceType{
 		Interface: pos,
@@ -513,32 +513,32 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	defer decNestLev(incNestLev(p))
 
 	switch p.token {
-	case tokens.IDENT:
-		typ := p.parseTypeName(nil)   // 可能是 x.name(包名) 或者 x
-		if p.token == tokens.LBRACK { // x[]
+	case token.IDENT:
+		typ := p.parseTypeName(nil)  // 可能是 x.name(包名) 或者 x
+		if p.token == token.LBRACK { // x[]
 			typ = p.parseTypeInstance(typ) // todo
 		}
 		return typ
-	case tokens.LBRACK:
-		lbrack := p.expect(tokens.LBRACK) // n[]
+	case token.LBRACK:
+		lbrack := p.expect(token.LBRACK) // n[]
 		return p.parseArrayType(lbrack, nil)
-	case tokens.STRUCT:
+	case token.STRUCT:
 		return p.parseStructType()
-	case tokens.MUL:
+	case token.MUL:
 		return p.parsePointerType()
-	case tokens.FUNC:
+	case token.FUNC:
 		return p.parseFuncType()
-	case tokens.INTERFACE:
+	case token.INTERFACE:
 		return p.parseInterfaceType()
-	case tokens.MAP:
+	case token.MAP:
 		return p.parseMapType()
 	//case tokens.CHAN, tokens.ARROW:
 	//	return p.parseChanType()
-	case tokens.LPAREN: // (
+	case token.LPAREN: // (
 		lparen := p.pos
 		p.next()
 		typ := p.parseType()
-		rparen := p.expect(tokens.RPAREN)
+		rparen := p.expect(token.RPAREN)
 		return &ast.ParenExpr{Lparen: lparen, X: typ, Rparen: rparen}
 	}
 

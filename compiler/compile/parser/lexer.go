@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"github.com/facelang/face/compiler/compile/tokens"
+	"github.com/facelang/face/compiler/compile/token"
 	"github.com/facelang/face/internal/reader"
 	"unicode"
 	"unicode/utf8"
@@ -11,9 +11,9 @@ import (
 const Whitespace = 1<<'\t' | 1<<'\r' | 1<<' '
 
 type lexer struct {
-	*reader.Reader            // 读取器
-	pos            tokens.Pos // 位置信息
-	identifier     string     // 标识符
+	*reader.Reader           // 读取器
+	pos            token.Pos // 位置信息
+	identifier     string    // 标识符
 }
 
 //type lexer struct {
@@ -35,7 +35,7 @@ type lexer struct {
 //}
 
 // NextToken todo 需要处理分号，和换行符， 还需要处理：分支语句中，必须是分号，其它情况可以是换行符或者分号
-func (lex *lexer) NextToken() tokens.Token {
+func (lex *lexer) NextToken() token.Token {
 	//defer func() {
 	//	l.back = false
 	//}()
@@ -47,10 +47,10 @@ func (lex *lexer) NextToken() tokens.Token {
 
 	ch, chw := lex.ReadRune()
 	if chw == 0 {
-		return tokens.EOF
+		return token.EOF
 	}
 
-	lex.pos = tokens.Pos(lex.Pos())
+	lex.pos = token.Pos(lex.Pos())
 
 	// skip white space
 	for Whitespace&(1<<ch) != 0 {
@@ -58,7 +58,7 @@ func (lex *lexer) NextToken() tokens.Token {
 	}
 
 	if chw == 0 {
-		return tokens.EOF
+		return token.EOF
 	}
 
 	lex.identifier = ""
@@ -67,7 +67,7 @@ func (lex *lexer) NextToken() tokens.Token {
 	lex.TextReady()
 
 	if '0' <= ch && ch <= '9' { // 数字
-		return GetDecimal(lex, ch)
+		return Number(lex, ch)
 	}
 
 	if CheckIdent(ch, 0) { // 符号
@@ -75,84 +75,84 @@ func (lex *lexer) NextToken() tokens.Token {
 			ch, chw = lex.ReadRune()
 		}
 		lex.identifier = lex.ReadText()
-		return tokens.Lookup(lex.identifier)
+		return token.Lookup(lex.identifier)
 	}
 
 	switch ch {
 	case '\n':
-		return tokens.NEWLINE
+		return token.NEWLINE
 	case '+':
-		return tokens.ADD
+		return token.ADD
 	case '-':
-		return tokens.SUB
+		return token.SUB
 	case '*':
-		return tokens.MUL
+		return token.MUL
 	case '/':
 		next, _ := lex.ReadByte()
 		if next == '/' {
 			lex.identifier = reader.Comment(lex.Reader)
-			return tokens.COMMENT
+			return token.COMMENT
 		}
 		lex.GoBack()
-		return tokens.QUO
+		return token.QUO
 	case '>':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return tokens.GEQ
+			return token.GEQ
 		} else if next == '>' {
-			return tokens.SHR
+			return token.SHR
 		} else {
 			lex.GoBack()
-			return tokens.GTR
+			return token.GTR
 		}
 	case '<':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return tokens.LEQ
+			return token.LEQ
 		} else if next == '>' {
-			return tokens.SHL
+			return token.SHL
 		} else {
 			lex.GoBack()
-			return tokens.LSS
+			return token.LSS
 		}
 	case '=':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return tokens.EQL
+			return token.EQL
 		}
 		lex.GoBack()
-		return tokens.ASSIGN
+		return token.ASSIGN
 	case '!':
 		next, _ := lex.ReadByte()
 		if next == '=' {
-			return tokens.NEQ
+			return token.NEQ
 		}
 		lex.GoBack()
-		return tokens.NOT
+		return token.NOT
 	case ';':
-		return tokens.SEMICOLON
+		return token.SEMICOLON
 	case ',':
-		return tokens.COMMA
+		return token.COMMA
 	case '"': // 查找字符串，到 " 结束, 最后一个字符是 ", 所以不需要回退
 		ident, _ := reader.String(lex.Reader, '"')
 		lex.identifier = ident
-		return tokens.STRING
+		return token.STRING
 	case '\'': // 读一个字符, 字符串读， \' 结尾， 不需要回退
 		lex.identifier = reader.Char(lex.Reader)
-		return tokens.CHAR
+		return token.CHAR
 	case '`': // todo 多行文本，需要进一步处理为一般字符串
 		lex.identifier = reader.RawString(lex.Reader)
-		return tokens.STRING
+		return token.STRING
 	case '(':
-		return tokens.LPAREN
+		return token.LPAREN
 	case ')':
-		return tokens.RPAREN
+		return token.RPAREN
 	case '{':
-		return tokens.LBRACE
+		return token.LBRACE
 	case '}':
-		return tokens.RBRACE
+		return token.RBRACE
 	default:
-		return tokens.ILLEGAL
+		return token.ILLEGAL
 	}
 }
 
@@ -161,10 +161,14 @@ func CheckIdent(ch rune, i int) bool {
 		ch > utf8.RuneSelf || unicode.IsDigit(ch) && i > 0 // 第一个字符必须是字母或下划线
 }
 
-func GetDecimal(lex *lexer, ch rune) tokens.Token {
-	token, val := reader.Decimal(lex.Reader, ch)
+func Number(lex *lexer, ch rune) token.Token {
+	typ, val := reader.Number(lex.Reader, ch)
 	lex.identifier = val
-	return token
+
+	if typ == reader.INT_TYPE {
+		return token.INT
+	}
+	return token.FLOAT
 }
 
 func NewLexer(file string) *lexer { // 封装后的读取器

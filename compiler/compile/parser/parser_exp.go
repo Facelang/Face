@@ -3,6 +3,7 @@ package parser
 import (
 	"github.com/facelang/face/compiler/compile/ast"
 	"github.com/facelang/face/compiler/compile/tokens"
+	"go/token"
 )
 
 // maxNestLev is the deepest we're willing to recurse during parsing
@@ -31,7 +32,7 @@ func exprList(p *parser, inRhs bool) []ast.Expr {
 	p.inRhs = inRhs
 
 	list := []ast.Expr{expr(p)}
-	for p.token == tokens.COMMA {
+	for p.token == token.COMMA {
 		p.next()
 		list = append(list, expr(p))
 	}
@@ -62,22 +63,22 @@ func exprList(p *parser, inRhs bool) []ast.Expr {
 // types of the form [...]T). Callers must verify the result.
 func operand(p *parser) ast.Expr {
 	switch p.token {
-	case tokens.IDENT: // 变量符号
+	case token.IDENT: // 变量符号
 		x := p.name()
 		return x
 
-	case tokens.INT, tokens.FLOAT, tokens.IMAG, tokens.CHAR, tokens.STRING: // 值类型
+	case token.INT, token.FLOAT, token.IMAG, token.CHAR, token.STRING: // 值类型
 		x := &ast.BasicLit{Pos: 0, Kind: p.token, Value: p.identifier}
 		p.next()
 		return x
 
-	case tokens.LPAREN: // (...) 多了一层优先级
+	case token.LPAREN: // (...) 多了一层优先级
 		lparen := p.pos
 		p.next()
 		//p.exprLev++
 		x := exprRhs(p) // types may be parenthesized: (some type)
 		//p.exprLev--
-		rparen := p.expect(tokens.RPAREN)
+		rparen := p.expect(token.RPAREN)
 		return &ast.ParenExpr{Lparen: lparen, X: x, Rparen: rparen}
 
 		//case tokens.FUNC: // func ...
@@ -104,7 +105,7 @@ func operand(p *parser) ast.Expr {
 
 // 只在 parseElement 被调用
 func (p *parser) parseValue() ast.Expr {
-	if p.token == tokens.LBRACE {
+	if p.token == token.LBRACE {
 		return p.parseLiteralValue(nil)
 	}
 
@@ -114,7 +115,7 @@ func (p *parser) parseValue() ast.Expr {
 // 只在 parseElementList 被调用
 func (p *parser) parseElement() ast.Expr {
 	x := p.parseValue()
-	if p.token == tokens.COLON {
+	if p.token == token.COLON {
 		colon := p.pos
 		p.next()
 		x = &ast.KeyValueExpr{Key: x, Colon: colon, Value: p.parseValue()}
@@ -124,9 +125,9 @@ func (p *parser) parseElement() ast.Expr {
 }
 
 func (p *parser) parseElementList() (list []ast.Expr) {
-	for p.token != tokens.RBRACE && p.token != tokens.EOF {
+	for p.token != token.RBRACE && p.token != token.EOF {
 		list = append(list, p.parseElement())
-		if p.token != tokens.COMMA {
+		if p.token != token.COMMA {
 			break
 		}
 		p.next()
@@ -139,19 +140,19 @@ func (p *parser) parseElementList() (list []ast.Expr) {
 func (p *parser) parseLiteralValue(typ ast.Expr) ast.Expr {
 	defer decNestLev(incNestLev(p))
 
-	lbrace := p.expect(tokens.LBRACE)
+	lbrace := p.expect(token.LBRACE)
 	var elts []ast.Expr
 	//p.exprLev++
-	if p.token != tokens.RBRACE {
+	if p.token != token.RBRACE {
 		elts = p.parseElementList()
 	}
 	//p.exprLev--
-	rbrace := p.expect(tokens.RBRACE)
+	rbrace := p.expect(token.RBRACE)
 	return &ast.CompositeLit{Type: typ, Lbrace: lbrace, Elts: elts, Rbrace: rbrace}
 }
 
 // packIndexExpr returns an IndexExpr x[expr0] or IndexListExpr x[expr0, ...].
-func packIndexExpr(x ast.Expr, lbrack tokens.Pos, exprs []ast.Expr, rbrack tokens.Pos) ast.Expr {
+func packIndexExpr(x ast.Expr, lbrack token.Pos, exprs []ast.Expr, rbrack token.Pos) ast.Expr {
 	switch len(exprs) {
 	case 0:
 		panic("internal error: packIndexExpr with empty expr slice")
@@ -173,8 +174,8 @@ func packIndexExpr(x ast.Expr, lbrack tokens.Pos, exprs []ast.Expr, rbrack token
 }
 
 func (p *parser) parseIndexOrSliceOrInstance(x ast.Expr) ast.Expr {
-	lbrack := p.expect(tokens.LBRACK)
-	if p.token == tokens.RBRACK { // 直接结束， 抛异常
+	lbrack := p.expect(token.LBRACK)
+	if p.token == token.RBRACK { // 直接结束， 抛异常
 		p.unexpect("[operand is empty]")
 		rbrack := p.pos
 		p.next()
@@ -190,35 +191,35 @@ func (p *parser) parseIndexOrSliceOrInstance(x ast.Expr) ast.Expr {
 	const N = 3         // [index] [:] [::]
 	var args []ast.Expr // 值类型 [1, 2, 3]
 	var index [N]ast.Expr
-	var colons [N - 1]tokens.Pos
-	if p.token != tokens.COLON {
+	var colons [N - 1]token.Pos
+	if p.token != token.COLON {
 		index[0] = exprRhs(p)
 	}
 	ncolons := 0
 	switch p.token {
-	case tokens.COLON:
+	case token.COLON:
 		// slice expression
-		for p.token == tokens.COLON && ncolons < len(colons) {
+		for p.token == token.COLON && ncolons < len(colons) {
 			colons[ncolons] = p.pos
 			ncolons++
 			p.next()
-			if p.token != tokens.COLON && p.token != tokens.RBRACK && p.token != tokens.EOF {
+			if p.token != token.COLON && p.token != token.RBRACK && p.token != token.EOF {
 				index[ncolons] = exprRhs(p)
 			}
 		}
-	case tokens.COMMA: // ,
+	case token.COMMA: // ,
 		// instance expression
 		args = append(args, index[0])
-		for p.token == tokens.COMMA {
+		for p.token == token.COMMA {
 			p.next()
-			if p.token != tokens.RBRACK && p.token != tokens.EOF {
+			if p.token != token.RBRACK && p.token != token.EOF {
 				args = append(args, p.parseType())
 			}
 		}
 	}
 
 	// p.exprLev--
-	rbrack := p.expect(tokens.RBRACK)
+	rbrack := p.expect(token.RBRACK)
 
 	if ncolons > 0 { // 切片类型
 		// slice expression
@@ -250,25 +251,25 @@ func (p *parser) parseIndexOrSliceOrInstance(x ast.Expr) ast.Expr {
 
 // 函数调用或类型转换，类型转换本身就是一种函数调用
 func (p *parser) funcCall(fun ast.Expr) *ast.CallExpr {
-	lparen := p.expect(tokens.LPAREN) // 开始
+	lparen := p.expect(token.LPAREN) // 开始
 	//p.exprLev++
 	var list []ast.Expr
-	var ellipsis tokens.Pos
-	for p.token != tokens.RPAREN && p.token != tokens.EOF && !ellipsis.IsValid() {
+	var ellipsis token.Pos
+	for p.token != token.RPAREN && p.token != token.EOF && !ellipsis.IsValid() {
 		list = append(list, exprRhs(p)) // builtins may expect a type: make(some type, ...)
-		if p.token == tokens.ELLIPSIS {
+		if p.token == token.ELLIPSIS {
 			ellipsis = p.pos
 			p.next()
 		}
 
 		// 逗号，继续解析下一个参数， 否则结束
-		if p.token != tokens.COMMA {
+		if p.token != token.COMMA {
 			break
 		}
 		p.next()
 	}
 	//p.exprLev--
-	rparen := p.expect(tokens.RPAREN) // 关闭
+	rparen := p.expect(token.RPAREN) // 关闭
 
 	return &ast.CallExpr{Fun: fun, Lparen: lparen, Args: list, Ellipsis: ellipsis, Rparen: rparen}
 }
@@ -284,14 +285,14 @@ func primaryExpr(p *parser, x ast.Expr) ast.Expr {
 	for n = 1; ; n++ { // 持续++
 		//incNestLev(p)
 		switch p.token {
-		case tokens.PERIOD: // x. 只能接 ident
+		case token.PERIOD: // x. 只能接 ident
 			p.next()
 			x = &ast.SelectorExpr{X: x, Sel: p.name()}
-		case tokens.LBRACK: // x[...], x[1], x[:]
+		case token.LBRACK: // x[...], x[1], x[:]
 			x = p.parseIndexOrSliceOrInstance(x) // todo
-		case tokens.LPAREN: // x(...), 函数调用或类型转换
+		case token.LPAREN: // x(...), 函数调用或类型转换
 			x = p.funcCall(x)
-		case tokens.LBRACE: // todo {} 什么意思？
+		case token.LBRACE: // todo {} 什么意思？
 			// operand may have returned a parenthesized complit
 			// type; accept it but complain if we have a complit
 			t := ast.Unparen(x) // 解括号 (), 获取 x 真实类型
@@ -329,7 +330,7 @@ func unaryExpr(p *parser) ast.Expr {
 	defer decNestLev(incNestLev(p))
 
 	switch p.token {
-	case tokens.ADD, tokens.SUB, tokens.NOT, tokens.XOR, tokens.AND, tokens.TILDE: // +, -, !, ^， ~
+	case token.ADD, token.SUB, token.NOT, token.XOR, token.AND, token.TILDE: // +, -, !, ^， ~
 		pos, op := p.pos, p.token
 		p.next()
 		x := unaryExpr(p) // 再解析...
@@ -340,10 +341,10 @@ func unaryExpr(p *parser) ast.Expr {
 }
 
 // 获得 token 和 优先级； 特例：将右值表达式中的 赋值符号 视为 ==
-func precedence(p *parser) (tokens.Token, int) {
+func precedence(p *parser) (token.Token, int) {
 	tok := p.token
-	if p.inRhs && tok == tokens.ASSIGN {
-		tok = tokens.EQL
+	if p.inRhs && tok == token.ASSIGN {
+		tok = token.EQL
 	}
 	return tok, tok.Precedence() // 这个应该是优先级
 }
@@ -382,7 +383,7 @@ func exprRhs(p *parser) ast.Expr {
 // 从高到低： 二元运算符优先级最高, 其次一元运算符, 其他运算符, 操作数
 // 二元运算符 还需要进一步判断优先级
 func expr(p *parser) ast.Expr {
-	return binaryExpr(p, nil, tokens.LowestPrec+1) // 最低优先级？
+	return binaryExpr(p, nil, token.LowestPrec+1) // 最低优先级？
 }
 
 type field struct {
@@ -391,7 +392,7 @@ type field struct {
 }
 
 func (p *parser) parseDotsType() *ast.Ellipsis {
-	pos := p.expect(tokens.ELLIPSIS)
+	pos := p.expect(token.ELLIPSIS)
 	elt := p.parseType()
 
 	return &ast.Ellipsis{Ellipsis: pos, Elt: elt}
@@ -402,14 +403,14 @@ func (p *parser) parseParamDecl(name *ast.Name, typeSetsOK bool) (f field) {
 
 	ptok := p.token
 	if name != nil { // 有参数名， 强制 tokens.IDENT
-		p.token = tokens.IDENT // force tokens.IDENT case in switch below
-	} else if typeSetsOK && p.token == tokens.TILDE {
+		p.token = token.IDENT // force tokens.IDENT case in switch below
+	} else if typeSetsOK && p.token == token.TILDE {
 		// "~" ...
 		return field{nil, p.embeddedElem(nil)}
 	}
 
 	switch p.token { // 判断符号类型
-	case tokens.IDENT:
+	case token.IDENT:
 		// name
 		if name != nil {
 			f.name = name
@@ -418,31 +419,31 @@ func (p *parser) parseParamDecl(name *ast.Name, typeSetsOK bool) (f field) {
 			f.name = p.name() // 解析参数名
 		}
 		switch p.token { // 再次判断符号
-		case tokens.IDENT, tokens.MUL, tokens.ARROW, tokens.FUNC, tokens.CHAN, tokens.MAP, tokens.STRUCT, tokens.INTERFACE, tokens.LPAREN:
+		case token.IDENT, token.MUL, token.ARROW, token.FUNC, token.CHAN, token.MAP, token.STRUCT, token.INTERFACE, token.LPAREN:
 			// name type
 			f.typ = p.parseType() // 解析符号
 
-		case tokens.LBRACK: // [] 数组类型
+		case token.LBRACK: // [] 数组类型
 			// name "[" type1, ..., typeN "]" or name "[" n "]" type
 			f.name, f.typ = p.parseArrayFieldOrTypeInstance(f.name)
 
-		case tokens.ELLIPSIS: // ... 可变参数
+		case token.ELLIPSIS: // ... 可变参数
 			// name "..." type
 			f.typ = p.parseDotsType()
 			return // don't allow ...type "|" ...
 
-		case tokens.PERIOD: // . 选择器 name.xxx, 这种一定判定为 类型， 而不是参数名
+		case token.PERIOD: // . 选择器 name.xxx, 这种一定判定为 类型， 而不是参数名
 			// name "." ...
 			f.typ = p.parseQualifiedIdent(f.name)
 			f.name = nil
 
-		case tokens.TILDE: // ~ 类型约束
+		case token.TILDE: // ~ 类型约束
 			if typeSetsOK {
 				f.typ = p.embeddedElem(nil)
 				return
 			}
 
-		case tokens.OR: // | 类型约束
+		case token.OR: // | 类型约束
 			if typeSetsOK {
 				// name "|" typeset
 				f.typ = p.embeddedElem(f.name)
@@ -451,11 +452,11 @@ func (p *parser) parseParamDecl(name *ast.Name, typeSetsOK bool) (f field) {
 			}
 		}
 
-	case tokens.MUL, tokens.ARROW, tokens.FUNC, tokens.LBRACK, tokens.CHAN, tokens.MAP, tokens.STRUCT, tokens.INTERFACE, tokens.LPAREN:
+	case token.MUL, token.ARROW, token.FUNC, token.LBRACK, token.CHAN, token.MAP, token.STRUCT, token.INTERFACE, token.LPAREN:
 		// type
 		f.typ = p.parseType()
 
-	case tokens.ELLIPSIS:
+	case token.ELLIPSIS:
 		// "..." type
 		// (always accepted)
 		f.typ = p.parseDotsType()
@@ -468,7 +469,7 @@ func (p *parser) parseParamDecl(name *ast.Name, typeSetsOK bool) (f field) {
 	}
 
 	// [name] type "|"
-	if typeSetsOK && p.token == tokens.OR && f.typ != nil {
+	if typeSetsOK && p.token == token.OR && f.typ != nil {
 		f.typ = p.embeddedElem(f.typ)
 	}
 
@@ -478,9 +479,9 @@ func (p *parser) parseParamDecl(name *ast.Name, typeSetsOK bool) (f field) {
 // 多处调用， 默认调用 name0, type0 = nil ] or )
 // parseMethodSpec中 name0 != nil, typ0 = nil ]
 // parseGenericType中 name0, typ0 != nil ]
-func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing tokens.Token) (params []*ast.Field) {
+func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing token.Token) (params []*ast.Field) {
 	// Type parameters are the only parameter list closed by ']'.
-	tparams := closing == tokens.RBRACK // 是否是泛型参数
+	tparams := closing == token.RBRACK // 是否是泛型参数
 
 	pos0 := p.pos
 	if name0 != nil {
@@ -501,7 +502,7 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 
 	// todo 第一个参数不为空，或者不是结束符，则继续解析
 	//       p.tok != closing, 就会一直循环
-	for name0 != nil || p.token != closing && p.token != tokens.EOF {
+	for name0 != nil || p.token != closing && p.token != token.EOF {
 		var par field
 		if typ0 != nil { // todo 有泛型参数的情况
 			if tparams {
@@ -523,7 +524,7 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 			}
 			// todo 实际解析， 单类型参数，会被解析为 par.name && par.typ = nil
 		}
-		if p.token != tokens.COMMA {
+		if p.token != token.COMMA {
 			break
 		}
 		p.next() // 取下一个符号，继续解析
@@ -546,7 +547,7 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 		if tparams { // 一般为 false, 处理单泛型类型（没有类型约束）Class[T, B, C]， 直接抛出异常？？？
 			// This is the same error handling as below, adjusted for type parameters only.
 			// See comment below for details. (go.dev/issue/64534)
-			var errPos tokens.Pos
+			var errPos token.Pos
 			var msg string
 			if named == typed /* same as typed == 0 */ {
 				errPos = p.pos // position error at closing ]
@@ -562,7 +563,7 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 		}
 	} else if named != len(list) { // 类似 ？？ func (a, b, c int)
 		// some named or we're in a type parameter list => all must be named
-		var errPos tokens.Pos                 // left-most error position (or invalid)
+		var errPos token.Pos                  // left-most error position (or invalid)
 		var typ ast.Expr                      // current type (from right to left)
 		for i := len(list) - 1; i >= 0; i-- { // 从右向左扫描参数列表
 			if par := &list[i]; par.typ != nil { // par.typ != nil 记录类型，向前
@@ -650,4 +651,52 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 		addParams()
 	}
 	return
+}
+
+// 可以解析参数以及泛型参数， 包括：接收者、参数、返回值
+// 解析参数时， acceptTParams=true 可以同时解析泛型参数
+func (p *parser) parseParameters(acceptTParams bool) (tparams, params *ast.FieldList) {
+	// todo 可以同时解析泛型参数
+	if acceptTParams && p.token == token.LBRACK {
+		opening := p.pos
+		p.next()
+		// [T any](params) syntax
+		list := p.parseParameterList(nil, nil, token.RBRACK)
+		rbrack := p.expect(token.RBRACK) // ] 结束
+		tparams = &ast.FieldList{Opening: opening, List: list, Closing: rbrack}
+		// Type parameter lists must not be empty.
+		if tparams.NumFields() == 0 {
+			p.error(tparams.Closing, "empty type parameter list")
+			tparams = nil // avoid follow-on errors
+		}
+	}
+
+	// 这里开始解析参数列表
+	opening := p.expect(token.LPAREN) // ()
+
+	var fields []*ast.Field
+	if p.token != token.RPAREN { // ）结束，判定
+		fields = p.parseParameterList(nil, nil, token.RPAREN)
+	}
+
+	rparen := p.expect(token.RPAREN) // ） 消耗掉结束符
+	params = &ast.FieldList{Opening: opening, List: fields, Closing: rparen}
+
+	return // 返回两个参数，一个 tparams 一个 params
+}
+
+func (p *parser) parseResult() *ast.FieldList {
+	if p.token == token.LPAREN {
+		_, results := p.parseParameters(false)
+		return results
+	}
+
+	typ := p.tryIdentOrType()
+	if typ != nil {
+		list := make([]*ast.Field, 1)
+		list[0] = &ast.Field{Type: typ}
+		return &ast.FieldList{List: list}
+	}
+
+	return nil
 }

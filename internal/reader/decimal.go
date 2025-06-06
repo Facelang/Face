@@ -2,12 +2,16 @@ package reader
 
 import (
 	"fmt"
-	"github.com/facelang/face/compiler/compile/internal/tokens"
 	"strings"
 )
 
-// Decimal 这是一个数字的解析器, 读取结束，最后一个字符不是有效数字， 可能是其它符号，所以需要退回最后一个
-func Decimal(r *Reader, first rune) (tokens.Token, string) {
+type NumberType int8
+
+const INT_TYPE NumberType = 1
+const FLOAT_TYPE NumberType = 2
+
+// Number 这是一个数字的解析器, 读取结束，最后一个字符不是有效数字， 可能是其它符号，所以需要退回最后一个
+func Number(r *Reader, first rune) (NumberType, string) {
 	defer func() {
 		r.GoBack() // 最后一个符号需要回退
 	}()
@@ -19,13 +23,13 @@ func Decimal(r *Reader, first rune) (tokens.Token, string) {
 	// 整数部分
 	ds := byte(0)
 	ch := byte(first)
-	tok := tokens.INT
+	tok := INT_TYPE
 
 	if first == '0' {
 		ch, _ = r.ReadByte()
 		switch ch {
 		case '.': // 小数
-			tok = tokens.FLOAT
+			tok = FLOAT_TYPE
 		case 'x', 'X':
 			ch, _ = r.ReadByte()
 			base, prefix = 16, 'x'
@@ -40,26 +44,26 @@ func Decimal(r *Reader, first rune) (tokens.Token, string) {
 			flags = 1 // 前导0, 或者 只为 0
 		}
 	} else if first == '.' {
-		tok = tokens.FLOAT
+		tok = FLOAT_TYPE
 	} else {
 		flags = 1 // 前导数
 	}
 
 	// 整数和16进制支持小数表达， 先读取整数部分
 	// 123.456 和 0x1.2p3 都是合法的
-	if tok == tokens.INT || prefix != 'x' {
+	if tok == INT_TYPE || prefix != 'x' {
 		ch, ds = digits(r, ch, base) // 解析所有数字和下划线
 		flags |= ds                  // ds 的值为 01 表示有数字，10 表示有下划线
 		if ch == '.' {
 			if flags&1 == 0 { // 0x. 是非法的
 				panic(fmt.Errorf("%s has no digits", decimalName(prefix)))
 			}
-			tok = tokens.FLOAT
+			tok = FLOAT_TYPE
 		}
 	}
 
 	// 非十进制，或者小数 （小数点后的数字或其它进制）
-	if tok == tokens.FLOAT || prefix != 0 {
+	if tok == FLOAT_TYPE || prefix != 0 {
 		ch, ds = digits(r, ch, base) // 解析所有数字和下划线
 		flags |= ds                  // ds 的值为 01 表示有数字，10 表示有下划线
 		if flags&1 == 0 {            // 没有读取到数字
@@ -77,7 +81,7 @@ func Decimal(r *Reader, first rune) (tokens.Token, string) {
 		}
 
 		ch, _ = r.ReadByte()
-		tok = tokens.FLOAT
+		tok = FLOAT_TYPE
 		if ch == '+' || ch == '-' {
 			ch, _ = r.ReadByte()
 		}
