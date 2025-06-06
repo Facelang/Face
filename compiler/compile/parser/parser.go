@@ -170,10 +170,10 @@ func (p *parser) importDecl() *ast.Package {
 // ConstSpec = IdentifierList [ [ Type ] "=" ExpressionList ] .
 func (p *parser) constDecl() ast.Decl {
 	d := new(ast.GenDecl)
-	d.SetPos(p.Pos())
+	d.Pos = p.expect(tokens.COMMENT)
 
-	d.NameList = p.nameList(p.name())
-	if p.token != tokens.EOF && p.token != SEMICOLON && p.token != _Rparen {
+	d.Names = p.nameList(p.name())
+	if p.token != tokens.EOF && p.token != tokens.SEMICOLON && p.token != tokens.RPAREN {
 		d.Type = p.typeOrNil()
 		if p.gotAssign() {
 			d.Values = p.exprList()

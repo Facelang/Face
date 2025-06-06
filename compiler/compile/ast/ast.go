@@ -29,7 +29,6 @@ import (
 // All node types implement the Node interface.
 type Node interface {
 	Offset() tokens.Pos // position of first character belonging to the node
-	End() tokens.Pos    // position of first character immediately after the node
 }
 
 // All expression nodes implement the Expr interface.
@@ -91,19 +90,6 @@ func (f *Field) Offset() tokens.Pos {
 	return tokens.NoPos
 }
 
-func (f *Field) End() tokens.Pos {
-	if f.Tag != nil {
-		return f.Tag.End()
-	}
-	if f.Type != nil {
-		return f.Type.End()
-	}
-	if len(f.Names) > 0 {
-		return f.Names[len(f.Names)-1].End()
-	}
-	return tokens.NoPos
-}
-
 // A FieldList represents a list of Fields, enclosed by parentheses,
 // curly braces, or square brackets.
 type FieldList struct {
@@ -120,18 +106,6 @@ func (f *FieldList) Offset() tokens.Pos {
 	// be conservative and guard against bad ASTs
 	if len(f.List) > 0 {
 		return f.List[0].Offset()
-	}
-	return tokens.NoPos
-}
-
-func (f *FieldList) End() tokens.Pos {
-	if f.Closing.IsValid() {
-		return f.Closing + 1
-	}
-	// the list should not be empty in this case;
-	// be conservative and guard against bad ASTs
-	if n := len(f.List); n > 0 {
-		return f.List[n-1].End()
 	}
 	return tokens.NoPos
 }
@@ -384,39 +358,6 @@ func (x *FuncType) Offset() tokens.Pos {
 func (x *InterfaceType) Offset() tokens.Pos { return x.Interface }
 func (x *MapType) Offset() tokens.Pos       { return x.Map }
 
-func (x *BadExpr) End() tokens.Pos { return x.To }
-func (x *Name) End() tokens.Pos    { return tokens.Pos(int(x.Pos) + len(x.Name)) }
-func (x *Ellipsis) End() tokens.Pos {
-	if x.Elt != nil {
-		return x.Elt.End()
-	}
-	return x.Ellipsis + 3 // len("...")
-}
-func (x *BasicLit) End() tokens.Pos       { return tokens.Pos(int(x.Pos) + len(x.Value)) }
-func (x *FuncLit) End() tokens.Pos        { return x.Body.End() }
-func (x *CompositeLit) End() tokens.Pos   { return x.Rbrace + 1 }
-func (x *ParenExpr) End() tokens.Pos      { return x.Rparen + 1 }
-func (x *SelectorExpr) End() tokens.Pos   { return x.Sel.End() }
-func (x *IndexExpr) End() tokens.Pos      { return x.Rbrack + 1 }
-func (x *IndexListExpr) End() tokens.Pos  { return x.Rbrack + 1 }
-func (x *SliceExpr) End() tokens.Pos      { return x.Rbrack + 1 }
-func (x *TypeAssertExpr) End() tokens.Pos { return x.Rparen + 1 }
-func (x *CallExpr) End() tokens.Pos       { return x.Rparen + 1 }
-func (x *StarExpr) End() tokens.Pos       { return x.X.End() }
-func (x *UnaryExpr) End() tokens.Pos      { return x.X.End() }
-func (x *BinaryExpr) End() tokens.Pos     { return x.Y.End() }
-func (x *KeyValueExpr) End() tokens.Pos   { return x.Value.End() }
-func (x *ArrayType) End() tokens.Pos      { return x.Elt.End() }
-func (x *StructType) End() tokens.Pos     { return x.Fields.End() }
-func (x *FuncType) End() tokens.Pos {
-	if x.Results != nil {
-		return x.Results.End()
-	}
-	return x.Params.End()
-}
-func (x *InterfaceType) End() tokens.Pos { return x.Methods.End() }
-func (x *MapType) End() tokens.Pos       { return x.Value.End() }
-
 // expr() ensures that only expression/type nodes can be
 // assigned to an Expr.
 func (*BadExpr) expr()        {}
@@ -655,68 +596,6 @@ func (s *SelectStmt) Offset() tokens.Pos     { return s.Select }
 func (s *ForStmt) Offset() tokens.Pos        { return s.For }
 func (s *RangeStmt) Offset() tokens.Pos      { return s.For }
 
-func (s *BadStmt) End() tokens.Pos  { return s.To }
-func (s *DeclStmt) End() tokens.Pos { return s.Decl.End() }
-func (s *EmptyStmt) End() tokens.Pos {
-	if s.Implicit {
-		return s.Semicolon
-	}
-	return s.Semicolon + 1 /* len(";") */
-}
-func (s *LabeledStmt) End() tokens.Pos { return s.Stmt.End() }
-func (s *ExprStmt) End() tokens.Pos    { return s.X.End() }
-func (s *SendStmt) End() tokens.Pos    { return s.Value.End() }
-func (s *IncDecStmt) End() tokens.Pos {
-	return s.TokPos + 2 /* len("++") */
-}
-func (s *AssignStmt) End() tokens.Pos { return s.Rhs[len(s.Rhs)-1].End() }
-func (s *GoStmt) End() tokens.Pos     { return s.Call.End() }
-func (s *DeferStmt) End() tokens.Pos  { return s.Call.End() }
-func (s *ReturnStmt) End() tokens.Pos {
-	if n := len(s.Results); n > 0 {
-		return s.Results[n-1].End()
-	}
-	return s.Return + 6 // len("return")
-}
-func (s *BranchStmt) End() tokens.Pos {
-	if s.Label != nil {
-		return s.Label.End()
-	}
-	return tokens.Pos(int(s.TokPos) + len(s.Tok.String()))
-}
-func (s *BlockStmt) End() tokens.Pos {
-	if s.Rbrace.IsValid() {
-		return s.Rbrace + 1
-	}
-	if n := len(s.List); n > 0 {
-		return s.List[n-1].End()
-	}
-	return s.Lbrace + 1
-}
-func (s *IfStmt) End() tokens.Pos {
-	if s.Else != nil {
-		return s.Else.End()
-	}
-	return s.Body.End()
-}
-func (s *CaseClause) End() tokens.Pos {
-	if n := len(s.Body); n > 0 {
-		return s.Body[n-1].End()
-	}
-	return s.Colon + 1
-}
-func (s *SwitchStmt) End() tokens.Pos     { return s.Body.End() }
-func (s *TypeSwitchStmt) End() tokens.Pos { return s.Body.End() }
-func (s *CommClause) End() tokens.Pos {
-	if n := len(s.Body); n > 0 {
-		return s.Body[n-1].End()
-	}
-	return s.Colon + 1
-}
-func (s *SelectStmt) End() tokens.Pos { return s.Body.End() }
-func (s *ForStmt) End() tokens.Pos    { return s.Body.End() }
-func (s *RangeStmt) End() tokens.Pos  { return s.Body.End() }
-
 // stmtNode() ensures that only statement nodes can be
 // assigned to a Stmt.
 func (*BadStmt) stmtNode()        {}
@@ -748,10 +627,10 @@ func (*RangeStmt) stmtNode()      {}
 // constant, type, or variable declaration.
 type (
 	// The Spec type stands for any of *ImportSpec, *ValueSpec, and *TypeSpec.
-	Spec interface {
-		Node
-		specNode()
-	}
+	//Spec interface {
+	//	Node
+	//	specNode()
+	//}
 
 	// A ValueSpec node represents a constant or variable declaration
 	// (ConstSpec or VarSpec production).
@@ -761,36 +640,15 @@ type (
 		Type   Expr    // value type; or nil
 		Values []Expr  // initial values; or nil
 	}
-
-	// A TypeSpec node represents a type declaration (TypeSpec production).
-	TypeSpec struct {
-		Name       *Name      // type name
-		TypeParams *FieldList // type parameters; or nil
-		Assign     tokens.Pos // position of '=', if any
-		Type       Expr       // *Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes
-	}
 )
 
 // Pos and End implementations for spec nodes.
 
 func (s *ValueSpec) Offset() tokens.Pos { return s.Names[0].Offset() }
-func (s *TypeSpec) Offset() tokens.Pos  { return s.Name.Offset() }
-
-func (s *ValueSpec) End() tokens.Pos {
-	if n := len(s.Values); n > 0 {
-		return s.Values[n-1].End()
-	}
-	if s.Type != nil {
-		return s.Type.End()
-	}
-	return s.Names[len(s.Names)-1].End()
-}
-func (s *TypeSpec) End() tokens.Pos { return s.Type.End() }
 
 // specNode() ensures that only spec nodes can be
 // assigned to a Spec.
 func (*ValueSpec) specNode() {}
-func (*TypeSpec) specNode()  {}
 
 // A declaration is represented by one of the following declaration nodes.
 type (
@@ -802,23 +660,12 @@ type (
 		From, To tokens.Pos // position range of bad declaration
 	}
 
-	// A GenDecl node (generic declaration node) represents an import,
-	// constant, type or variable declaration. A valid Lparen position
-	// (Lparen.IsValid()) indicates a parenthesized declaration.
-	//
-	// Relationship between Tok value and Specs element type:
-	//
-	//	tokens.IMPORT  *ImportSpec
-	//	tokens.CONST   *ValueSpec
-	//	tokens.TYPE    *TypeSpec
-	//	tokens.VAR     *ValueSpec
-	//
-	GenDecl struct { // 这是一个数组
-		TokPos tokens.Pos   // position of Tok
-		Tok    tokens.Token // IMPORT, CONST, TYPE, or VAR
-		Lparen tokens.Pos   // position of '(', if any
-		Specs  []Spec
-		Rparen tokens.Pos // position of ')', if any
+	GenDecl struct {
+		Pos    tokens.Pos   // position of Tok
+		Token  tokens.Token // const or Let
+		Names  []*Name      // value names (len(Names) > 0)
+		Type   Expr         // value type; or nil
+		Values []Expr       // initial values; or nil
 	}
 
 	// A FuncDecl node represents a function declaration.
@@ -828,27 +675,28 @@ type (
 		Type *FuncType  // function signature: type and value parameters, results, and position of "func" keyword
 		Body *BlockStmt // function body; or nil for external (non-Go) function
 	}
+
+	// TypeDecl type 语句：
+	// 		type name1 int 新的类型
+	// 		type name2 = int 类型别名
+	//		type name3 struct {} 结构体
+	// 		type name5 interface{} 接口
+	TypeDecl struct {
+		Pos        tokens.Pos // position of Tok
+		Name       *Name      // type name
+		Lparen     tokens.Pos // position of '(', if any
+		TypeParams *FieldList // type parameters; or nil
+		Assign     tokens.Pos // position of '=', if any
+		Rparen     tokens.Pos // position of ')', if any
+		Type       Expr       // *Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes
+	}
 )
 
 // Pos and End implementations for declaration nodes.
 
 func (d *BadDecl) Offset() tokens.Pos  { return d.From }
-func (d *GenDecl) Offset() tokens.Pos  { return d.TokPos }
+func (d *GenDecl) Offset() tokens.Pos  { return d.Pos }
 func (d *FuncDecl) Offset() tokens.Pos { return d.Type.Offset() }
-
-func (d *BadDecl) End() tokens.Pos { return d.To }
-func (d *GenDecl) End() tokens.Pos {
-	if d.Rparen.IsValid() {
-		return d.Rparen + 1
-	}
-	return d.Specs[0].End()
-}
-func (d *FuncDecl) End() tokens.Pos {
-	if d.Body != nil {
-		return d.Body.End()
-	}
-	return d.Type.End()
-}
 
 // declNode() ensures that only declaration nodes can be
 // assigned to a Decl.
