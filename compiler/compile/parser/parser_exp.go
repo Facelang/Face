@@ -2,8 +2,7 @@ package parser
 
 import (
 	"github.com/facelang/face/compiler/compile/ast"
-	"github.com/facelang/face/compiler/compile/tokens"
-	"go/token"
+	"github.com/facelang/face/compiler/compile/token"
 )
 
 // maxNestLev is the deepest we're willing to recurse during parsing
@@ -315,7 +314,7 @@ func primaryExpr(p *parser, x ast.Expr) ast.Expr {
 				return x
 			}
 			if t != x {
-				p.error(t.Offset(), "cannot parenthesize type in composite literal")
+				p.error(t.Position(), "cannot parenthesize type in composite literal")
 				// already progressed, no need to advance
 			}
 			x = p.parseLiteralValue(x) // todo 已实现，可能不需要
@@ -485,9 +484,9 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 
 	pos0 := p.pos
 	if name0 != nil {
-		pos0 = name0.Offset()
+		pos0 = name0.Position()
 	} else if typ0 != nil {
-		pos0 = typ0.Offset()
+		pos0 = typ0.Position()
 	}
 
 	// Note: The code below matches the corresponding code in the syntax
@@ -569,7 +568,7 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 			if par := &list[i]; par.typ != nil { // par.typ != nil 记录类型，向前
 				typ = par.typ
 				if par.name == nil { // 参数名为空？
-					errPos = typ.Offset() // 记录一个异常
+					errPos = typ.Position() // 记录一个异常
 					n := &ast.Name{Pos: errPos, Name: "_"}
 					par.name = n // 记录一个 _ 下划线变量
 				}
@@ -577,7 +576,7 @@ func (p *parser) parseParameterList(name0 *ast.Name, typ0 ast.Expr, closing toke
 				par.typ = typ
 			} else {
 				// par.typ == nil && typ == nil => we only have a par.name
-				errPos = par.name.Offset()
+				errPos = par.name.Position()
 				par.typ = &ast.BadExpr{From: errPos, To: p.pos}
 			}
 		}
