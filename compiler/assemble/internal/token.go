@@ -89,35 +89,35 @@ const (
 	// 零操作数指令
 	I_RET
 	// 汇编指令
-	A_SEC
-	A_GLB
-	A_EQU
-	A_TIMES
-	A_DB
-	A_DW
-	A_DD
+	K_SEC
+	K_GLB
+	K_EQU
+	K_TIMES
+	K_DB
+	K_DW
+	K_DD
 
 	// 数据段定义相关的token
-	A_BYTE = iota + _literal + 1
-	A_WORD
-	A_LONG
-	A_QUAD
-	A_ASCII
-	A_ASCIZ
-	A_STRING
-	A_REPT
-	A_ENDR
+	K_BYTE = iota + _literal + 1 // .byte
+	K_WORD
+	K_LONG
+	K_QUAD
+	K_ASCII
+	K_ASCIZ
+	K_STRING
+	K_REPT
+	K_ENDR
 
 	// 段定义相关的token
-	A_DATA = iota + _literal + 1  // .data
-	A_TEXT                        // .text
-	A_BSS                         // .bss
-	A_SECTION                     // .section
-	A_GLOBAL                      // .global
-	A_LOCAL                       // .local
-	A_ALIGN                       // .align
-	A_SKIP                        // .skip
-	A_SPACE                       // .space
+	K_DATA    = iota + _literal + 1 // .data
+	K_TEXT                          // .text
+	K_BSS                           // .bss
+	K_SECTION                       // .section
+	K_GLOBAL                        // .global
+	K_LOCAL                         // .local
+	K_ALIGN                         // .align
+	K_SKIP                          // .skip
+	K_SPACE                         // .space
 )
 
 var tokens = [...]string{
@@ -178,24 +178,26 @@ var tokenNames = map[Token]string{
 	WHILE:    "while",
 
 	//TILDE:     "~",
-	A_BYTE:   ".byte",
-	A_WORD:   ".word",
-	A_LONG:   ".long",
-	A_QUAD:   ".quad",
-	A_ASCII:  ".ascii",
-	A_ASCIZ:  ".asciz",
-	A_STRING: ".string",
-	A_REPT:   ".rept",
-	A_ENDR:   ".endr",
-	A_DATA:   ".data",
-	A_TEXT:   ".text",
-	A_BSS:    ".bss",
-	A_SECTION: ".section",
-	A_GLOBAL: ".global",
-	A_LOCAL:  ".local",
-	A_ALIGN:  ".align",
-	A_SKIP:   ".skip",
-	A_SPACE:  ".space",
+	K_BYTE:    ".byte",
+	K_WORD:    ".word",
+	K_LONG:    ".long",
+	K_QUAD:    ".quad",
+	K_QUAD:    ".float",
+	K_QUAD:    ".double",
+	K_ASCII:   ".ascii",
+	K_ASCIZ:   ".asciz",
+	K_STRING:  ".string",
+	K_REPT:    ".rept",
+	K_ENDR:    ".endr",
+	K_DATA:    ".data",
+	K_TEXT:    ".text",
+	K_BSS:     ".bss",
+	K_SECTION: ".section",
+	K_GLOBAL:  ".global",
+	K_LOCAL:   ".local",
+	K_ALIGN:   ".align",
+	K_SKIP:    ".skip",
+	K_SPACE:   ".space",
 }
 
 func (tok Token) String() string {
@@ -235,7 +237,7 @@ var keywordsTable = []Token{
 	I_MOV, I_CMP, I_SUB, I_ADD, I_LEA,
 	I_CALL, I_INT, I_IMUL, I_IDIV, I_NEG, I_INC, I_DEC, I_JMP, I_JE, I_JG, I_JL, I_JGE, I_JLE, I_JNE, I_JNA, I_PUSH, I_POP,
 	I_RET,
-	A_SEC, A_GLB, A_EQU, A_TIMES, A_DB, A_DW, A_DD,
+	K_SEC, K_GLB, K_EQU, K_TIMES, K_DB, K_DW, K_DD,
 	IDENT, IDENT, IDENT, // 段名作为标识符处理
 }
 

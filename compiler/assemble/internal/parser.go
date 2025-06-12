@@ -230,6 +230,38 @@ func (p *parser) labelDec(id string) {
 	}
 }
 
+func (p *parser) dataList() (*ast.File, error) {
+	p.next() // 跳过.data
+	// 解析数据段内容
+	for p.token > _literal {
+		switch p.token {
+		case ".byte", ".word", ".long", ".quad", ".float", ".double", A_STRING:
+			// 解析数据定义伪指令
+			decl := p.parseDataDirective()
+			if decl != nil {
+				p.declList = append(p.declList, decl)
+			}
+		case A_REPT:
+			// 解析重复定义
+			decl := p.parseReptDirective()
+			if decl != nil {
+				p.declList = append(p.declList, decl)
+			}
+		case IDENT:
+			// 解析标签定义
+			p.declList = append(p.declList, p.labelDec(p.id))
+		case A_GLB: // 全局符号定义
+			p.require(IDENT)
+			// 添加到全局符号表
+			p.ProcTable.AddLabel(p.id, NewLabelGlobal())
+		default:
+			p.errorf("unexpected token in data section: %s", p.token)
+			return nil, p.error
+		}
+		p.next()
+	}
+}
+
 func (p *parser) ParseFile() (*ast.File, error) {
 	if p.error != nil {
 		return nil, p.error
@@ -239,41 +271,8 @@ func (p *parser) ParseFile() (*ast.File, error) {
 
 	for p.token > _literal {
 		switch p.token {
-		case IDENT: // 两种情况，段落定义，变量定义
-			p.declList = append(p.declList, p.labelDec(p.id))
-		case A_SEC: // 段定义
-			p.require(IDENT)
-			p._switch(p.id) // 切换到新的段
 		case A_DATA: // 数据段定义
-			p.next() // 跳过.data
-			// 解析数据段内容
-			for p.token > _literal {
-				switch p.token {
-				case A_BYTE, A_WORD, A_LONG, A_QUAD, A_ASCII, A_ASCIZ, A_STRING:
-					// 解析数据定义伪指令
-					decl := p.parseDataDirective()
-					if decl != nil {
-						p.declList = append(p.declList, decl)
-					}
-				case A_REPT:
-					// 解析重复定义
-					decl := p.parseReptDirective()
-					if decl != nil {
-						p.declList = append(p.declList, decl)
-					}
-				case IDENT:
-					// 解析标签定义
-					p.declList = append(p.declList, p.labelDec(p.id))
-				case A_GLB: // 全局符号定义
-					p.require(IDENT)
-					// 添加到全局符号表
-					p.ProcTable.AddLabel(p.id, NewLabelGlobal())
-				default:
-					p.errorf("unexpected token in data section: %s", p.token)
-					return nil, p.error
-				}
-				p.next()
-			}
+			p.dataList()
 		case A_TEXT: // 代码段定义
 			p.next() // 跳过.text
 			// 解析代码段内容
@@ -286,6 +285,11 @@ func (p *parser) ParseFile() (*ast.File, error) {
 				}
 				p.next()
 			}
+		case IDENT: // 两种情况，段落定义，变量定义
+			p.declList = append(p.declList, p.labelDec(p.id))
+		case A_SEC: // 段定义
+			p.require(IDENT)
+			p._switch(p.id) // 切换到新的段
 		case A_GLB: // 全局符号定义
 			p.require(IDENT)
 			// 添加到全局符号表
@@ -565,6 +569,10 @@ func (p *Parser) asmData(operands [][]lex.Token) { // 记录一条数据到数�
 	}
 }
 
+func (p *parser) pseudo() bool  {
+	
+}
+
 func (p *Parser) Parse() *Program {
 	scratch := make([][]lex.Token, 0, 3)
 	for {
@@ -605,21 +613,27 @@ func NewParser(lex *lexer) *Parser {
 // parseDataDirective 解析数据定义伪指令
 func (p *parser) parseDataDirective() *ast.GenDecl {
 	switch p.token {
-	case A_BYTE:  // .byte
+	case ".byte":  // .byte
 		return p.parseByteDirective()
-	case A_WORD:  // .word
+	case ".word":  // .word
 		return p.parseWordDirective()
-	case A_LONG:  // .long
+	case ".long":  // .long
 		return p.parseLongDirective()
-	case A_QUAD:  // .quad
+	case ".quad":  // .quad
 		return p.parseQuadDirective()
-	case A_ASCII: // .ascii
+	case ".float", ".single":  // .float
+		return p.parseQuadDirective()
+	case ".double":  // .double
+		return p.parseQuadDirective()
+	case ".quad":  // .quad
+		return p.parseQuadDirective()
+	case ".ascii": // .ascii
 		return p.parseAsciiDirective()
-	case A_ASCIZ: // .asciz
+	case ".asciz": // .asciz
 		return p.parseAscizDirective()
-	case A_STRING: // .string
+	case ".string": // .string
 		return p.parseStringDirective()
-	case A_REPT:  // .rept
+	case ".rept":  // .rept
 		return p.parseReptDirective()
 	default:
 		p.errorf("unknown data directive: %s", p.token)
